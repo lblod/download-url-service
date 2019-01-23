@@ -2,6 +2,7 @@ import { app, query, update, uuid, sparqlEscapeString, sparqlEscapeUri, sparqlEs
 import fs from 'fs';
 import url from 'url';
 import needle from 'needle';
+import { CronJob } from 'cron';
 
 /** Schedule export cron job */
 const cronFrequency = process.env.CRON_PATTERN || '0 0 20 * * *';
