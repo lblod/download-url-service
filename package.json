@@ -1,0 +1,24 @@
+{
+  "name": "download-url-service",
+  "version": "0.0.1",
+  "description": "a simple service that downloads content from urls",
+  "main": "app.js",
+  "dependencies": {
+    "cron": "^1.6.0",
+    "needle": "^2.2.4"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lblod/download-url-service.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lblod/download-url-service/issues"
+  },
+  "homepage": "https://github.com/lblod/download-url-service#readme"
+}
