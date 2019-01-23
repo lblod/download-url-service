@@ -3,8 +3,16 @@ import fs from 'fs';
 import url from 'url';
 import needle from 'needle';
 
+/** Schedule export cron job */
+const cronFrequency = process.env.CRON_PATTERN || '0 0 20 * * *';
+
+new CronJob(cronFrequency, function() {
+  console.log(`download triggered by cron job at ${new Date().toISOString()}`);
+  request.post('http://localhost/fetch-urls');
+}, null, true);
+
 needle.defaults({ follow: 3, user_agent: 'LBLOD scaper'});
-app.get('/fetch-urls', async function( req, res, next ) {
+app.post('/fetch-urls', async function( req, res, next ) {
   try {
     const r = await query(`
             PREFIX nie:     <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>

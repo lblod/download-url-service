@@ -9,6 +9,8 @@ download:
     links:
       - virtuoso:database
     volumes:
-    - ./data/files:/share
+      - ./data/files:/share
+    environment:
+      CRON_PATTERN: "s m h dom mon dow"
 ```
 
