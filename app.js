@@ -21,7 +21,8 @@ app.post('/fetch-urls', async function( req, res, next ) {
             SELECT DISTINCT ?g ?url ?inzending ?fileAddress
             WHERE {
               GRAPH ?g {
-                ?inzending <http://mu.semte.ch/vocabularies/ext/supervision/fileAddress> ?fileAddress.
+                ?inzending <http://mu.semte.ch/vocabularies/ext/supervision/fileAddress> ?fileAddress;
+                           <http://www.w3.org/ns/adms#status> <http://data.lblod.info/document-statuses/verstuurd>.
               }
               ?fileAddress a <http://mu.semte.ch/vocabularies/ext/FileAddress>; <http://mu.semte.ch/vocabularies/ext/fileAddress> ?url
               FILTER(NOT EXISTS {
