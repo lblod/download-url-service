@@ -1,4 +1,5 @@
-import { app, query, update, uuid, sparqlEscapeString, sparqlEscapeUri, sparqlEscapeInt, sparqlEscapeDateTime } from 'mu';
+import { app, uuid, sparqlEscapeString, sparqlEscapeUri, sparqlEscapeInt, sparqlEscapeDateTime } from 'mu';
+import { querySudo as  query, queryUpdate as update } from './auth-sudo';
 import fs from 'fs';
 import url from 'url';
 import needle from 'needle';
