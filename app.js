@@ -81,7 +81,7 @@ app.post('/fetch-urls', async function( req, res, next ) {
                                                         mu:uuid ${sparqlEscapeString(uploadUuid)};
                                                         dcterms:format ${sparqlEscapeString(contentType)};
                                                         nfo:fileSize ${sparqlEscapeInt(fileSize)};
-                                                        dbpedia:fileExtension ${sparqlEscapeString(remoteExtension)};
+                                                        dbo:fileExtension ${sparqlEscapeString(remoteExtension)};
                                                         dcterms:created ${sparqlEscapeDateTime(created)};
                                                         dcterms:modified ${sparqlEscapeDateTime(created)};
                                                         nie:dataSource ${sparqlEscapeUri(source)}.
@@ -91,7 +91,7 @@ app.post('/fetch-urls', async function( req, res, next ) {
                                                                 mu:uuid ${sparqlEscapeString(id)};
                                                                 dcterms:format ${sparqlEscapeString(contentType)};
                                                                 nfo:fileSize ${sparqlEscapeInt(fileSize)};
-                                                                dbpedia:fileExtension ${sparqlEscapeString(extension)};
+                                                                dbo:fileExtension ${sparqlEscapeString(extension)};
                                                                 dcterms:created ${sparqlEscapeDateTime(created)};
                                                                 dcterms:modified ${sparqlEscapeDateTime(created)}.
                                }}`;
