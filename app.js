@@ -1,5 +1,5 @@
 import { app, uuid, sparqlEscapeString, sparqlEscapeUri, sparqlEscapeInt, sparqlEscapeDateTime } from 'mu';
-import { querySudo as  query, queryUpdate as update } from './auth-sudo';
+import { querySudo as  query, updateSudo as update } from './auth-sudo';
 import fs from 'fs';
 import url from 'url';
 import needle from 'needle';
@@ -32,42 +32,41 @@ app.post('/fetch-urls', async function( req, res, next ) {
               })
             }
     `);
-    if (r.results.bindings.length > 0) {
-      for (const binding of r.results.bindings) {
-        try {
-          const parsed_url = url.parse(binding.url.value);
-          var contentType = "";
-          needle.head(parsed_url.href, function(err, resp) {
-            if (!err) {
-              contentType = resp.headers['content-type'] ? resp.headers['content-type'] : '';
-            }
-          });
-          const remoteFilename = parsed_url.pathname.split('/').pop();
-          const remoteExtension = remoteFilename.includes(".") ? remoteFilename.split('.').pop() : '';
-          const extension = remoteExtension === 'pdf' || contentType.includes("application/pdf") ? 'pdf' : 'html';
-          const id = uuid();
-          const filename = `${id}.${extension}`;
-          const path = `/share/${filename}`;
-          const file = fs.createWriteStream(path);
-          const res = needle.get(parsed_url.href);
-          res.pipe(file);
-          res.on('done', async function(err) {
-            file.end();
-            if (err) {
-              console.log(`An error ocurred for ${parsed_url.href}: ` + err.message);
-              fs.unlinkSync(path);
-            }
-            else {
-              const stats = fs.statSync(path);
-              const fileSize = stats.size;
-              const uploadUuid = uuid();
-              const uploadResource = `http://mu.semte.ch/services/download-url-service/${uploadUuid}`;
-              const fileResource = `share://${filename}`;
-              const created = new Date();
-              const graph = binding.g.value;
-              const inzending = binding.inzending.value;
-              const source = binding.fileAddress.value;
-              const query = `PREFIX nie:     <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+    for (const binding of r.results.bindings) {
+      try {
+        const parsed_url = url.parse(binding.url.value);
+        var contentType = "";
+        needle.head(parsed_url.href, function(err, resp) {
+          if (!err) {
+            contentType = resp.headers['content-type'] ? resp.headers['content-type'] : '';
+          }
+        });
+        const remoteFilename = parsed_url.pathname.split('/').pop();
+        const remoteExtension = remoteFilename.includes(".") ? remoteFilename.split('.').pop() : '';
+        const extension = remoteExtension === 'pdf' || contentType.includes("application/pdf") ? 'pdf' : 'html';
+        const id = uuid();
+        const filename = `${id}.${extension}`;
+        const path = `/share/${filename}`;
+        const file = fs.createWriteStream(path);
+        const res = needle.get(parsed_url.href);
+        res.pipe(file);
+        res.on('done', async function(err) {
+          file.end();
+          if (err) {
+            console.log(`An error ocurred for ${parsed_url.href}: ` + err.message);
+            fs.unlinkSync(path);
+          }
+          else {
+            const stats = fs.statSync(path);
+            const fileSize = stats.size;
+            const uploadUuid = uuid();
+            const uploadResource = `http://mu.semte.ch/services/download-url-service/${uploadUuid}`;
+            const fileResource = `share://${filename}`;
+            const created = new Date();
+            const graph = binding.g.value;
+            const inzending = binding.inzending.value;
+            const source = binding.fileAddress.value;
+            const query = `PREFIX nie:     <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
                              PREFIX nfo:     <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
                              PREFIX dcterms: <http://purl.org/dc/terms/>
                              PREFIX dbo:     <http://dbpedia.org/ontology/>
@@ -96,14 +95,13 @@ app.post('/fetch-urls', async function( req, res, next ) {
                                                                 dcterms:created ${sparqlEscapeDateTime(created)};
                                                                 dcterms:modified ${sparqlEscapeDateTime(created)}.
                                }}`;
-              await update(query);
-            }
-          });
-        }
-        catch(e) {
-          console.log(`downloading ${binding.url.value} resulted in an error`);
-          console.log(e);
-        }
+            await update(query);
+          }
+        });
+      }
+      catch(e) {
+        console.log(`downloading ${binding.url.value} resulted in an error`);
+        console.log(e);
       }
     }
     res.sendStatus(202);
