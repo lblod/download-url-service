@@ -1,0 +1,23 @@
+CODE REVIEW
+------------
+
+TODO
+--------
+x BUG: setting to PENDING the first time seems to reset the times tried to 0
+x uncomment chron job
+- [OPTIONAL]: replace "cached" with uri a little cleaner. But really not mandatarory
+x provide sensible defaults for things which possibly be not returned from the server. eg date mimetype etc
+x The jobs in PENDING should have timeout! (see e.g. https://github.com/lblod/deliver-bbcdr-rapporten-service/blob/master/app.js#L22)
+  We have to make sure we have the redirect. https://github.com/lblod/loket-download-url-service/blob/master/app.js#L97
+- Quite often, the mime type is not provided. https://github.com/lblod/loket-download-url-service/blob/master/app.js#L103 We have libraries to tackle these.
+ But as first mvp, let's do .txt as a default
+x Actually we need only to download the files, associated with an inzending for toezicht on status 'VERSTUURD'
+
+
+NEW FEATURES
+------------
+- SEAS should be used
+- [NEXT ITERATION] in the url box in frontend, display a link to the cached file so it can be downloaded
+- [NEXT ITERATION] If we have HTML, download images
+- [NEXT ITERATION] handle funky ssl issues (use https://www.npmjs.com/package/ssl-root-cas)
+- [NEXT ITERATION] handle sinlge page app
