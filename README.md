@@ -1,8 +1,6 @@
 # download url service
 
-# loket-download-url-service
-
-A microservice that periodically looks in the database for urls that are ready to be cached and tries to download and store their content locally, if not already stored. You can force it to run immediately by visiting /checkurls subroute.
+A microservice that periodically looks in the database for urls that have the "ready-to-be-cached" status and tries to download and store their content locally, if not already stored. You can force it to run immediately by visiting /checkurls subroute.
 
 ```
   FILE_STORAGE
