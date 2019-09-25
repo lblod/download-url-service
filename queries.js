@@ -89,7 +89,6 @@ async function createDownloadEvent(remoteDataObjectUri){
       }
     }
   `;
-console.log('DEBUG')
   let result = await query(q);
   return subject;
 }
