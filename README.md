@@ -1,4 +1,4 @@
-# download url service
+# download-url-service
 Service responsible for processing of nfo:RemoteDataObject with adms:status set to <http://lblod.data.gift/download-url-statuses/ready-to-be-cached>
 
 Service will download the associated URL as file.
