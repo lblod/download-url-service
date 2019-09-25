@@ -1,4 +1,5 @@
 import { app, errorHandler, uuid } from 'mu';
+import { waitForDatabase } from './database-utils';
 import { getRemoteDataObjectByStatus,
          updateStatus,
          createDownloadEvent,
@@ -36,9 +37,7 @@ fs.readdirSync(certificatesDir).forEach(file => {
 });
 https.globalAgent.options.ca = rootCas;
 
-//If db is not ready, this crashes.
-//We assume implicitly automatic restart.
-rescheduleTasksOnStart();
+waitForDatabase(rescheduleTasksOnStart);
 
 app.get('/', function( req, res ) {
   res.send(`Welcome to the dowload url service.`);
@@ -64,7 +63,7 @@ async function process() {
   //start processing
   for(let o of remoteObjects){
     try {
-      await performDownloadTask(o, o.dlEventUri);
+      //await performDownloadTask(o, o.dlEventUri);
     }
     catch(error){
       handleDownloadTaskError(error, o, o.dlEventUri);
