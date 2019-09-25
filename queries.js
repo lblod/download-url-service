@@ -120,32 +120,6 @@ async function getDownloadEvent(subjectUri){
   return  (result.results.bindings || [])[0];
 }
 
-async function getDownloadEventsByStatus(status){
-  let q = `
-    PREFIX    adms: <http://www.w3.org/ns/adms#>
-    PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
-    PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
-    PREFIX    dct: <http://purl.org/dc/terms/>
-    PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
-
-    SELECT DISTINCT ?graph ?subject ?uuid ?status ?created ?modified ?numberOfRetries ?involves WHERE{
-      GRAPH ?graph {
-        VALUES ?status { ${sparqlEscapeUri(status)} }.
-        ?subject a ndo:DownloadEvent;
-                     mu:uuid ?uuid;
-                     adms:status ?status;
-                     task:numberOfRetries ?numberOfRetries;
-                     dct:created ?created;
-                     dct:modified ?modified;
-                     nuao:involves ?involves.
-      }
-    }
-  `;
-  let result = await query(q);
-  return  result.results.bindings || [];
-}
-
 async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
