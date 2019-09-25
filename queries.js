@@ -20,8 +20,8 @@ async function getRemoteDataObjectByStatus(status) {
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
-    SELECT DISTINCT ?graph ?subject ?url ?uuid ?downloadEventUri WHERE{
-      GRAPH ?graph {
+    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri WHERE{
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ?subject a nfo:RemoteDataObject;
                  mu:uuid ?uuid;
                  nie:url ?url;
@@ -40,18 +40,19 @@ async function updateStatus(uri, newStatusUri){
     PREFIX    adms: <http://www.w3.org/ns/adms#>
 
     DELETE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status.
-      }
-    }
-    INSERT {
-      GRAPH ?graph {
-        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(newStatusUri)}.
       }
     }
     WHERE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status.
+      }
+    }
+    ;
+    INSERT DATA{
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(newStatusUri)}.
       }
     }
   `;
@@ -71,8 +72,8 @@ async function createDownloadEvent(remoteDataObjectUri){
     PREFIX    dct: <http://purl.org/dc/terms/>
     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
-    INSERT {
-      GRAPH ?graph {
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(subject)} a task:Task;
                                                 a ndo:DownloadEvent;
                                                 mu:uuid ${sparqlEscapeString(sUuid)};
@@ -82,11 +83,6 @@ async function createDownloadEvent(remoteDataObjectUri){
                                                 dct:modified ${sparqlEscapeDateTime(created)};
                                                 dct:creator <http://lblod.data.gift/services/download-url-service>;
                                                 nuao:involves ${sparqlEscapeUri(remoteDataObjectUri)}.
-      }
-    }
-    WHERE{
-      GRAPH ?graph {
-        ${sparqlEscapeUri(remoteDataObjectUri)} ?p ?o.
       }
     }
   `;
@@ -103,8 +99,8 @@ async function getDownloadEvent(subjectUri){
     PREFIX    dct: <http://purl.org/dc/terms/>
     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
-    SELECT DISTINCT ?graph ?subject ?uuid ?status ?created ?modified ?numberOfRetries ?involves WHERE{
-      GRAPH ?graph {
+    SELECT DISTINCT ?subject ?uuid ?status ?created ?modified ?numberOfRetries ?involves WHERE{
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         VALUES ?subject { ${sparqlEscapeUri(subjectUri)} }.
         ?subject a ndo:DownloadEvent;
                      mu:uuid ?uuid;
@@ -126,22 +122,23 @@ async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
 
     DELETE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status;
                                 task:numberOfRetries ?numberOfRetries.
-      }
-    }
-    INSERT {
-      GRAPH ?graph {
-        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(newStatusUri)};
-                                task:numberOfRetries ${sparqlEscapeInt(numberOfRetries)}.
       }
     }
     WHERE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status;
                                 task:numberOfRetries ?numberOfRetries.
 
+      }
+    }
+    ;
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(newStatusUri)};
+                                task:numberOfRetries ${sparqlEscapeInt(numberOfRetries)}.
       }
     }
   `;
@@ -155,19 +152,20 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
     DELETE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status.
-      }
-    }
-    INSERT {
-      GRAPH ?graph {
-        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(SUCCESS)};
-                                nuao:involves ${sparqlEscapeUri(fileUri)}.
       }
     }
     WHERE {
-      GRAPH ?graph {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(uri)} adms:status ?status.
+      }
+    }
+    ;
+    INSERT DATA{
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(SUCCESS)};
+                                nuao:involves ${sparqlEscapeUri(fileUri)}.
       }
     }
   `;
@@ -208,7 +206,6 @@ export { getRemoteDataObjectByStatus,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,
-         getDownloadEventsByStatus,
          updateDownloadEvent,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
