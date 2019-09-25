@@ -20,7 +20,7 @@ import path from 'path';
 import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 
-const CACHING_MAX_RETRIES = parseInt(process.env || {}).CACHING_MAX_RETRIES || 300;
+const CACHING_MAX_RETRIES = parseInt((process.env || {}).CACHING_MAX_RETRIES || 300);
 const FILE_STORAGE = (process.env || {}).FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
