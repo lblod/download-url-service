@@ -1,8 +1,7 @@
 import { uuid, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeInt, sparqlEscapeDate, sparqlEscapeDateTime } from 'mu';
-import { query }  from '@lblod/mu-auth-sudo';
+import { querySudo as query } from '@lblod/mu-auth-sudo';
 
-
-const DEFAULT_GRAPH = process.env.DEFAULT_GRAPH || 'http://mu.semte.ch/graphs/public';
+const DEFAULT_GRAPH = (process.env || {}).DEFAULT_GRAPH || 'http://mu.semte.ch/graphs/public';
 const READY = 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
 const ONGOING = 'http://lblod.data.gift/file-download-statuses/ongoing';
 const SUCCESS = 'http://lblod.data.gift/file-download-statuses/success';
@@ -69,16 +68,18 @@ async function createDownloadEvent(remoteDataObjectUri){
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
     PREFIX    dct: <http://purl.org/dc/terms/>
+    PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
     INSERT {
       GRAPH ?graph {
         ${sparqlEscapeUri(remoteDataObjectUri)} a task:Task;
                                                 a ndo:DownloadEvent;
-                                                mu:uuid ${sUuid};
-                                                adms:status ${ONGOING};
+                                                mu:uuid ${sparqlEscapeString(sUuid)};
+                                                adms:status ${sparqlEscapeUri(ONGOING)};
                                                 task:numberOfRetries ${sparqlEscapeInt(0)};
                                                 dct:created ${sparqlEscapeDateTime(created)};
                                                 dct:modified ${sparqlEscapeDateTime(created)};
+                                                dct:creator <http://lblod.data.gift/services/download-url-service>;
                                                 nuao:involves ${sparqlEscapeUri(remoteDataObjectUri)}.
       }
     }
@@ -88,7 +89,7 @@ async function createDownloadEvent(remoteDataObjectUri){
       }
     }
   `;
-
+console.log('DEBUG')
   let result = await query(q);
   return subject;
 }
@@ -100,6 +101,7 @@ async function getDownloadEvent(subjectUri){
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
     PREFIX    dct: <http://purl.org/dc/terms/>
+    PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
     SELECT DISTINCT ?graph ?subject, ?uuid, ?status, ?created, ?modified, ?numberOfRetries, ?involves {
       GRAPH ?graph {
@@ -114,7 +116,7 @@ async function getDownloadEvent(subjectUri){
       }
     }
   `;
-
+console.log('DEBUG')
   let result = await query(q);
   return  result.results.bindings || [];
 }
@@ -126,6 +128,7 @@ async function getDownloadEventsByStatus(status){
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
     PREFIX    dct: <http://purl.org/dc/terms/>
+    PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
     SELECT DISTINCT ?graph ?subject, ?uuid, ?status, ?created, ?modified, ?numberOfRetries, ?involves {
       GRAPH ?graph {
@@ -140,7 +143,7 @@ async function getDownloadEventsByStatus(status){
       }
     }
   `;
-
+console.log('DEBUG')
   let result = await query(q);
   return  result.results.bindings || [];
 }
@@ -177,6 +180,7 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
+    PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
     DELETE {
       GRAPH ?graph {
@@ -207,7 +211,9 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
 //     PREFIX    nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 //     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
 //     PREFIX    dbpedia: <http://dbpedia.org/ontology/>
-
+//     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
+//     PREFIX    dct: <http://purl.org/dc/terms/>
+//
 //     INSERT {
 //       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
 //         ${sparqlEscapeUri(fileObjectUri)} a
@@ -235,13 +241,15 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
     PREFIX    nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX    dbpedia: <http://dbpedia.org/ontology/>
+    PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
+    PREFIX    dct: <http://purl.org/dc/terms/>
 
-    INSERT {
+    INSERT DATA {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(fileObjectUri)} a nfo:FileDataObject;
               a nfo:LocalFileDataObject;
               nfo:fileName ${sparqlEscapeString(name)};
-              nie:dataSource ${sparqlEscapeUri(dataSourceUri)}
+              nie:dataSource ${sparqlEscapeUri(dataSourceUri)};
               ndo:copiedFrom ${sparqlEscapeUri(dataSourceUri)};
               mu:uuid ${sparqlEscapeString(uid)};
               dct:format ${sparqlEscapeString(type)};
