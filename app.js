@@ -36,6 +36,10 @@ fs.readdirSync(certificatesDir).forEach(file => {
 });
 https.globalAgent.options.ca = rootCas;
 
+//If db is not ready, this crashes.
+//We assume implicitly automatic restart.
+rescheduleTasksOnStart();
+
 app.get('/', function( req, res ) {
   res.send(`Welcome to the dowload url service.`);
 });
@@ -106,6 +110,20 @@ async function scheduleRetryProcessing(remoteObject, downloadEventUri){
   }, waitTime);
 
 }
+
+async function rescheduleTasksOnStart(){
+  let remoteObjects = await getRemoteDataObjectByStatus(ONGOING);
+  for(let o of remoteObjects){
+    try {
+      await scheduleRetryProcessing(o, o.downloadEventUri.value);
+    }
+    catch(error){
+      //if rescheduling fails, we consider there is something really broken...
+      console.log(`Fatal error for ${o.subject.value}`);
+      await updateStatus(o.subject.value, FAILURE);
+    }
+  }
+};
 
 function calcTimeout(x){
   //expected to be milliseconds

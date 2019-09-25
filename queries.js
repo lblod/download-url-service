@@ -18,13 +18,15 @@ async function getRemoteDataObjectByStatus(status) {
     PREFIX    nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
     PREFIX    dct: <http://purl.org/dc/terms/>
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+    PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
-    SELECT DISTINCT ?graph ?subject ?url ?uuid WHERE{
+    SELECT DISTINCT ?graph ?subject ?url ?uuid ?downloadEventUri WHERE{
       GRAPH ?graph {
         ?subject a nfo:RemoteDataObject;
                  mu:uuid ?uuid;
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
+         OPTIONAL { ?downloadEventUri nuao:involves ?subject }
       }
     }
   `;
