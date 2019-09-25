@@ -22,7 +22,7 @@ services:
         environment:
           DEFAULT_GRAPH: "http://mu.semte.ch/graphs/public"
           PING_DB_INTERVAL: "2"
-          CACHING_MAX_RETRIES: "300"
+          CACHING_MAX_RETRIES: "30"
           FILE_STORAGE: "/share"
 ```
 The environment variables are shown with their default values.
