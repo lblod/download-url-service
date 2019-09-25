@@ -1,6 +1,6 @@
 import { querySudo as query } from '@lblod/mu-auth-sudo';
 //courtesy @claire-lovisa
-const pingDbInterval = process.env.PING_DB_INTERVAL || 2;
+const pingDbInterval = parseInt(process.env.PING_DB_INTERVAL || 2);
 
 const isDatabaseUp = async function() {
   let isUp = false;
