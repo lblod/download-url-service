@@ -1,33 +1,36 @@
 # download url service
+Service responsible for processing of nfo:RemoteDataObject with adms:status set to <http://lblod.data.gift/download-url-statuses/ready-to-be-cached>
 
-A microservice that periodically looks in the database for urls that have the "ready-to-be-cached" status and tries to download and store their content locally, if not already stored. You can force it to run immediately by visiting /checkurls subroute.
+Service will download the associated URL as file.
 
-```
-  FILE_STORAGE
-    The local storage of files
+When finished, nfo:RemoteDataObject with adms:status will be set to <http://lblod.data.gift/file-download-statuses/success>
+When failed after capped retries: <http://lblod.data.gift/file-download-statuses/failure>
 
-  CACHING_MAX_RETRIES
-    How many times will the service try to download a resource before considering it as failed.
+## usage
 
-  CACHING_CRON_PATTERN
-    The time interval of service's re-execution.
-```
-
-## Installation
-
-To add the service to your stack, add the following snippet to docker-compose.yml:
+### docker-compose.yml
 
 ```
-download:
-    image: lblod/download-url-service:0.0.3
-    volumes:
-      - ./data/files:/data/files             # The right hand side of : must be in sync with FILE_STORAGE
-    restart: always
-    logging: *default-logging
-    environment:
-      CACHING_MAX_RETRIES: 300
-      CACHING_CRON_PATTERN: '0 */15 * * * *' # run every quarter
-      MAX_PENDING_TIME_IN_SECONDS: 7200      # set as you wish
-      NODE_ENV: "development"                # set as you wish
-      FILE_STORAGE: '/data/files'            # set as you wish
+version: '3.4'
+services:
+    download-url-service:
+        image: lblod/download-url-service
+        links:
+          - database:database
+        volumes:
+          - ./data/files:/share
+        environment:
+          DEFAULT_GRAPH: "http://mu.semte.ch/graphs/public"
+          PING_DB_INTERVAL: "2"
+          CACHING_MAX_RETRIES: "300"
+          FILE_STORAGE: "/share"
 ```
+The environment variables are shown with their default values.
+
+
+### api
+
+```
+curl -X POST http://localhost/process-remote-data-objects
+```
+Will trigger the job.
