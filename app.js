@@ -50,90 +50,69 @@ app.use(errorHandler);
 async function process() {
   const remoteObjects = await getRemoteDataObjectByStatus(READY);
 
-  //lock em first in DB
+  //create associated download events and lock in DB.
   for(let o of remoteObjects){
+    let dlEventUri = await createDownloadEvent(o.subject.value);
     await updateStatus(o.subject.value, ONGOING);
+    o.dlEventUri = dlEventUri;
   }
 
   //start processing
   for(let o of remoteObjects){
-    let dlEventUri = await createDownloadEvent(o.subject.value);
-    let downloadResult = await downloadFile(o);
-    //TODO: handle 500 (so not successful)
-    let physicalFileUri = await associateCachedFile(downloadResult, o);
-    await updateDownloadEventOnSuccess(dlEventUri, physicalFileUri);
-    await updateStatus(o.subject.value, SUCCESS);
-    console.log(`Processed ${o.subject.value}, with url: ${o.url.value}`);
+    try {
+      await performDownloadTask(o, o.dlEventUri);
+    }
+    catch(error){
+      handleDownloadTaskError(error, o, o.dlEventUri);
+    }
+  }
+}
+
+async function performDownloadTask(remoteObject, downloadEventUri){
+  let downloadResult = await downloadFile(remoteObject);
+  let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
+  await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
+  await updateStatus(remoteObject.subject.value, SUCCESS);
+  console.log(`Processed ${remoteObject.subject.value}, with url: ${remoteObject.url.value}`);
+}
+
+async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
+  console.error(`Error for ${remoteObject.subject.value} and task ${downloadEventUri}`);
+  console.error(error);
+  await updateStatus(downloadEventUri, FAILURE);
+  scheduleRetryProcessing(remoteObject, downloadEventUri);
+}
+
+async function scheduleRetryProcessing(remoteObject, downloadEventUri){
+  let downloadEvent = await getDownloadEvent(downloadEventUri);
+  if(downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES){
+    console.log(`Stopping retries for ${remoteObject.subject.uri} and task ${downloadEventUri})`);
+    return;
   }
 
-  // //--- start the process of downloading the resources
-  // const promises = fileAddresses.map( async (fileAddress) => {
+  let waitTime = calcTimeout(parseInt(downloadEvent.numberOfRetries.value));
+  console.log(`Expecting next retry for ${remoteObject.subject.uri} and task ${downloadEventUri} in about ${waitTime/1000} seconds`);
+  setTimeout(async () => {
+    try {
+      console.log(`Retry for ${remoteObject.subject.value} and task ${downloadEventUri}`);
+      await updateDownloadEvent(downloadEventUri, parseInt(downloadEvent.numberOfRetries.value) + 1, ONGOING);
+      await performDownloadTask(remoteObject, downloadEventUri);
+    }
+    catch(error){
+      handleDownloadTaskError(error, remoteObject, downloadEventUri);
+    }
+  }, waitTime);
 
-  //   const uri = fileAddress.uri.value;
-  //   const url = fileAddress.url.value;
-  //   const timesTried = fileAddress.hasOwnProperty('timesTried') ? parseInt(fileAddress.timesTried.value) : 0;
+}
 
-  //   let downloadResult = null;
-  //   let associationResult = null;
-
-  //   console.log(`Enqueuing ${url}`);
-
-  //   try {
-  //     //--- setting fileAddress's status to 'downloading' prevents us from
-  //     //--- redownloading a resource in case it's download
-  //     //--- takes longer than our iteration interval
-  //     await setStatus (uri, PENDING, null, timesTried);
-  //   }
-  //   catch (err) {
-  //     return;
-  //   }
-
-  //   try {
-  //     //--- download the content of fileAddress
-  //     downloadResult = await downloadFile(fileAddress);
-  //   }
-  //   catch (err) {
-  //     //--- A connection to the remote resource was not established
-  //     //--- update the cachedStatus of the fileAddress to either FAILED or DEAD
-  //     await setStatus(uri, getStatusLabelFor(timesTried), null, timesTried + 1);
-  //     return;
-  //   }
-
-  //   if (downloadResult.successful) {
-  //     try {
-  //       console.log(`Associating ${uri}`);
-  //       console.log(`            ${url}`);
-  //       //--- associate the downloaded file to the fileAddress
-  //       associationResult = await associateCachedFile(downloadResult);
-  //     }
-  //     catch (err) {
-  //       //--- The file has been successfuly deleted but it could not be associated
-  //       //--- with the FileAddress object in the database, maybe for some database error.
-  //       //--- We need to clean up
-  //       cleanUpFile(downloadResult.cachedFileAddress);
-  //       //--- Since this failure was not due to the remote server, we will try it again
-  //       //--- So, we don't inrease the timesTried value
-  //       await setStatus(uri, FAILED, null, timesTried);
-  //       return;
-  //     }
-  //   } else {
-  //     //--- Due to an error on the remote resource side, the file could not be downloaded
-  //     //--- update the cachedStatus of the fileAddress to either FAILED or DEAD
-  //     await setStatus(uri, getStatusLabelFor(timesTried), parseInt(downloadResult.result.statusCode), timesTried + 1);
-  //     return;
-  //   }
-
-  //   //--- File was successfuly downloaded and cached
-  //   //--- update the cachedStatus of the fileAddress to CACHED
-  //   await setStatus(uri, CACHED, parseInt(downloadResult.result.statusCode), timesTried + 1);
-  //   console.log (`${url} is cached successfuly`);
-  //});
+function calcTimeout(x){
+  //expected to be milliseconds
+  return Math.round(Math.exp(0.3 * x + 10)); //I dunno I just gave it a shot
 }
 
 /**
- * Downloads the resource and takes care of errors
- *
- * @param { uri, url, timesTried, statusLabel } fileAddress The necessary data from the FileAddress object
+ * Downloads the resource and takes care of errors.
+ * Throws exception on failed download.
  */
 async function downloadFile (remoteObject) {
 
@@ -165,7 +144,6 @@ async function downloadFile (remoteObject) {
           })
           .on('finish', () => {
             resolve({
-                  successful: true,
                   resource: remoteObject,
                   result: resp,
                   cachedFileAddress: localAddress,
@@ -177,7 +155,7 @@ async function downloadFile (remoteObject) {
       }
       else {
         //--- NO OK
-        resolve({ successful: false, resource: remoteObject, result: resp });
+        reject({ resource: remoteObject, result: resp, error: `Response code http ${code}` });
       }
     });
 
