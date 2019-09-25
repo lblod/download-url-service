@@ -1,6 +1,6 @@
 {
   "name": "download-url-service",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A simple service that downloads content from urls",
   "main": "app.js",
   "dependencies": {
