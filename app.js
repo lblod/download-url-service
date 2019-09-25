@@ -86,6 +86,8 @@ async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
 async function scheduleRetryProcessing(remoteObject, downloadEventUri){
   let downloadEvent = await getDownloadEvent(downloadEventUri);
   if(downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES){
+    await updateStatus(remoteObject.subject.value, FAILURE);
+    await updateStatus(downloadEventUri, FAILURE);
     console.log(`Stopping retries for ${remoteObject.subject.uri} and task ${downloadEventUri})`);
     return;
   }
