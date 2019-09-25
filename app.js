@@ -60,10 +60,9 @@ async function process() {
     o.dlEventUri = dlEventUri;
   }
 
-  //start processing
   for(let o of remoteObjects){
     try {
-      //await performDownloadTask(o, o.dlEventUri);
+      await performDownloadTask(o, o.dlEventUri);
     }
     catch(error){
       handleDownloadTaskError(error, o, o.dlEventUri);
