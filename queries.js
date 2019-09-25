@@ -116,7 +116,6 @@ async function getDownloadEvent(subjectUri){
       }
     }
   `;
-console.log('DEBUG')
   let result = await query(q);
   return  result.results.bindings || [];
 }
@@ -143,7 +142,6 @@ async function getDownloadEventsByStatus(status){
       }
     }
   `;
-console.log('DEBUG')
   let result = await query(q);
   return  result.results.bindings || [];
 }
