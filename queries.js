@@ -56,7 +56,6 @@ async function updateStatus(uri, newStatusUri){
   await query(q);
 }
 
-
 async function createDownloadEvent(remoteDataObjectUri){
   let sUuid = uuid();
   let subject = `http://lblod.data.gift/download-events/${sUuid}`;
@@ -102,9 +101,9 @@ async function getDownloadEvent(subjectUri){
     PREFIX    dct: <http://purl.org/dc/terms/>
     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
-    SELECT DISTINCT ?graph ?subject, ?uuid, ?status, ?created, ?modified, ?numberOfRetries, ?involves {
+    SELECT DISTINCT ?graph ?subject ?uuid ?status ?created ?modified ?numberOfRetries ?involves WHERE{
       GRAPH ?graph {
-        BIND(${sparqlEscapeUri(subjectUri)} as ?subject).
+        VALUES ?subject { ${sparqlEscapeUri(subjectUri)} }.
         ?subject a ndo:DownloadEvent;
                      mu:uuid ?uuid;
                      adms:status ?status;
@@ -116,7 +115,7 @@ async function getDownloadEvent(subjectUri){
     }
   `;
   let result = await query(q);
-  return  result.results.bindings || [];
+  return  (result.results.bindings || [])[0];
 }
 
 async function getDownloadEventsByStatus(status){
@@ -128,9 +127,9 @@ async function getDownloadEventsByStatus(status){
     PREFIX    dct: <http://purl.org/dc/terms/>
     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
 
-    SELECT DISTINCT ?graph ?subject, ?uuid, ?status, ?created, ?modified, ?numberOfRetries, ?involves {
+    SELECT DISTINCT ?graph ?subject ?uuid ?status ?created ?modified ?numberOfRetries ?involves WHERE{
       GRAPH ?graph {
-        BIND(${sparqlEscapeUri(status)} as ?status).
+        VALUES ?status { ${sparqlEscapeUri(status)} }.
         ?subject a ndo:DownloadEvent;
                      mu:uuid ?uuid;
                      adms:status ?status;
@@ -198,36 +197,6 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
   `;
   await query(q);
 }
-
-
-
-// async function createVirtualFileDataObject (fileObjectUri, fileAddressUri, name, type, fileSize, extension, created){
-//   const uid = uuid();
-//   let q = `
-//     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
-//     PREFIX    nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-//     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
-//     PREFIX    dbpedia: <http://dbpedia.org/ontology/>
-//     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
-//     PREFIX    dct: <http://purl.org/dc/terms/>
-//
-//     INSERT {
-//       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-//         ${sparqlEscapeUri(fileObjectUri)} a
-//             nfo:FileDataObject;
-//             nfo:fileName ${sparqlEscapeString(name)};
-//             dct:format ${sparqlEscapeString(type)};
-//             nfo:fileSize ${sparqlEscapeInt(fileSize)};
-//             dbpedia:fileExtension ${sparqlEscapeString(extension)};
-//             nfo:fileCreated ${sparqlEscapeDate(created)};
-//             mu:uuid ${sparqlEscapeString(uid)}.
-
-//         ${sparqlEscapeUri(fileObjectUri)} nie:dataSource  ${sparqlEscapeUri(fileAddressUri)}.
-//       }
-//     }
-//   `;
-//   return await query( q );
-// };
 
 async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, type, fileSize, extension, created){
   if(!fileObjectUri.startsWith('share://')) throw Error('File URI should start with share://');
