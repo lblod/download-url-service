@@ -72,7 +72,7 @@ async function createDownloadEvent(remoteDataObjectUri){
 
     INSERT {
       GRAPH ?graph {
-        ${sparqlEscapeUri(remoteDataObjectUri)} a task:Task;
+        ${sparqlEscapeUri(subject)} a task:Task;
                                                 a ndo:DownloadEvent;
                                                 mu:uuid ${sparqlEscapeString(sUuid)};
                                                 adms:status ${sparqlEscapeUri(ONGOING)};
