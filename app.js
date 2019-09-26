@@ -12,6 +12,8 @@ import { getRemoteDataObjectByStatus,
          SUCCESS,
          FAILURE
        } from './queries';
+import flatten from 'lodash.flatten';
+import uniq from 'lodash.uniq';
 
 import request from 'request';
 import fs  from 'fs-extra';
@@ -19,9 +21,10 @@ import mime from 'mime-types';
 import path from 'path';
 import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
+import bodyParser from 'body-parser';
 
-const CACHING_MAX_RETRIES = parseInt((process.env || {}).CACHING_MAX_RETRIES || 30);
-const FILE_STORAGE = (process.env || {}).FILE_STORAGE || '/share';
+const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
+const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 
@@ -38,19 +41,36 @@ https.globalAgent.options.ca = rootCas;
 
 waitForDatabase(rescheduleTasksOnStart);
 
+app.use( bodyParser.json( { type: function(req) { return /^application\/json/.test( req.get('content-type') ); } } ) );
+
+
 app.get('/', function( req, res ) {
   res.send(`Welcome to the dowload url service.`);
 });
 
 app.post('/process-remote-data-objects', async function( req, res ){
-  process();
+  const delta = req.body;
+  const remoteDataObjectUris = getRemoteDataObjectsFromDelta(delta);
+  console.log(`Found ${remoteDataObjectUris.length} new remote data objects in the delta message`);
+  processDownloads(remoteDataObjectUris);
   res.send({message: `Started.`});
 });
 
 app.use(errorHandler);
 
-async function process() {
-  const remoteObjects = await getRemoteDataObjectByStatus(READY);
+function getRemoteDataObjectsFromDelta(delta) {
+  const inserts = flatten(delta.map(changeSet => changeSet.inserts));
+  const remoteDataObjectUris = inserts.filter( triple => {
+    return triple.predicate.type == 'uri'
+      && triple.predicate.value == 'http://www.w3.org/ns/adms#status'
+      && triple.object.type == 'uri'
+      && triple.object.value == 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
+  }).map( triple => triple.subject.value );
+  return uniq(remoteDataObjectUris);
+}
+
+async function processDownloads(remoteDataObjectUris) {
+  const remoteObjects = await getRemoteDataObjectByStatus(READY, remoteDataObjectUris);
 
   //create associated download events and lock in DB.
   for(let o of remoteObjects){
@@ -86,15 +106,16 @@ async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
 
 async function scheduleRetryProcessing(remoteObject, downloadEventUri){
   let downloadEvent = await getDownloadEvent(downloadEventUri);
+  console.log(`Download event ${downloadEventUri} retried ${downloadEvent.numberOfRetries.value}/${CACHING_MAX_RETRIES} already`);
   if(downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES){
     await updateStatus(remoteObject.subject.value, FAILURE);
     await updateStatus(downloadEventUri, FAILURE);
-    console.log(`Stopping retries for ${remoteObject.subject.uri} and task ${downloadEventUri})`);
+    console.log(`Stopping retries for ${remoteObject.subject.value} and task ${downloadEventUri})`);
     return;
   }
 
   let waitTime = calcTimeout(parseInt(downloadEvent.numberOfRetries.value));
-  console.log(`Expecting next retry for ${remoteObject.subject.uri} and task ${downloadEventUri} in about ${waitTime/1000} seconds`);
+  console.log(`Expecting next retry for ${remoteObject.subject.value} and task ${downloadEventUri} in about ${waitTime/1000} seconds`);
   setTimeout(async () => {
     try {
       console.log(`Retry for ${remoteObject.subject.value} and task ${downloadEventUri}`);

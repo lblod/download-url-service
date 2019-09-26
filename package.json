@@ -1,12 +1,14 @@
 {
   "name": "download-url-service",
   "version": "0.1.0",
-  "description": "A simple service that downloads content from urls",
+  "description": "Microservice downloading a local copy of a remote file by URL",
   "main": "app.js",
   "dependencies": {
     "@lblod/mu-auth-sudo": "^0.2.0",
     "fs-extra": "^8.1.0",
     "request": "^2.88.0",
+    "lodash.flatten": "^4.4.0",
+    "lodash.uniq": "^4.5.0",
     "mime-types": "^2.1.24",
     "ssl-root-cas": "^1.3.1"
   },
@@ -16,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lblod/loket-download-url-service.git"
+    "url": "git+https://github.com/lblod/download-url-service.git"
   },
   "author": "redpencil.io",
   "license": "MIT"

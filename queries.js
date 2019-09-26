@@ -11,8 +11,17 @@ const FAILURE = 'http://lblod.data.gift/file-download-statuses/failure';
  * get remote data objects
  * @param {String} status uri
  */
-async function getRemoteDataObjectByStatus(status) {
-  let q = `
+async function getRemoteDataObjectByStatus(status, uris = []) {
+  let subjectValues = '';
+  if (uris.length) {
+    subjectValues = `
+      VALUES ?subject {
+        ${uris.map(sparqlEscapeUri).join('\n')}
+      }
+    `;
+  }
+
+  const q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
     PREFIX    nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
@@ -22,8 +31,9 @@ async function getRemoteDataObjectByStatus(status) {
 
     SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri WHERE{
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ?subject a nfo:RemoteDataObject;
-                 mu:uuid ?uuid;
+        ?subject a nfo:RemoteDataObject .
+        ${subjectValues}
+        ?subject mu:uuid ?uuid;
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
          OPTIONAL { ?downloadEventUri nuao:involves ?subject }
@@ -31,8 +41,8 @@ async function getRemoteDataObjectByStatus(status) {
     }
   `;
 
-  let result = await query(q);
-  return  result.results.bindings || [];
+  const result = await query(q);
+  return result.results.bindings || [];
 };
 
 async function updateStatus(uri, newStatusUri){
