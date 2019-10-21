@@ -52,9 +52,13 @@ Configure the [delta-notifier](https://github.com/mu-semtech/delta-notifier) to 
 
 ## Configuration
 The following environment variales can be configured:
+* `DEFAULT_GRAPH`: graph to write the download event and file to
+* `CACHING_MAX_RETRIES`: number of attempts to download a file before the download event transitions to a failure state
+* `FILE_STORAGE`: absolute path inside the container in which the downloaded files must be stored
+* `PING_DB_INTERVAL`: interval in seconds to ping the database on startup of the service
 
 ## Model
-The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/download-url-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
+The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/file-download-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
 
 The download service will create a download event (`ndo:DownloadEvent`) and a local file data object (`nfo:LocalFileDataObject`) on succesfull download of the remote resource. The properties of these resources are specified below.
 
