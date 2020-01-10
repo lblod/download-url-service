@@ -45,6 +45,24 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
   return result.results.bindings || [];
 };
 
+async function getRequestHeadersForRemoteDataObject(subject){
+  const q = `
+    PREFIX http: <http://www.w3.org/2011/http#>
+    PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http>
+
+    SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
+     GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+       ?s rpioHttp:requestHeader ?header.
+       ?header http:fieldValue ?headerValue.
+       ?header http:fieldName ?headerName.
+     }
+    }
+  `;
+  await query(q);
+  const result = await query(q);
+  return result.results.bindings || [];
+};
+
 async function updateStatus(uri, newStatusUri){
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
@@ -67,6 +85,7 @@ async function updateStatus(uri, newStatusUri){
     }
   `;
   await query(q);
+  
 }
 
 async function createDownloadEvent(remoteDataObjectUri){
@@ -213,6 +232,7 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
 };
 
 export { getRemoteDataObjectByStatus,
+         getRequestHeadersForRemoteDataObject,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,

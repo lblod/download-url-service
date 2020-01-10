@@ -1,6 +1,7 @@
 import { app, errorHandler, uuid } from 'mu';
 import { waitForDatabase } from './database-utils';
 import { getRemoteDataObjectByStatus,
+         getRequestHeadersForRemoteDataObject,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,
@@ -23,7 +24,7 @@ import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
 
-const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
+const CACHING_MAX_RETRIES = 1; //parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
@@ -90,7 +91,14 @@ async function processDownloads(remoteDataObjectUris) {
 }
 
 async function performDownloadTask(remoteObject, downloadEventUri){
-  let downloadResult = await downloadFile(remoteObject);
+  let requestHeaders = await getRequestHeadersForRemoteDataObject(remoteObject.subject);
+  requestHeaders = requestHeaders
+    .reduce((acc, h) => {
+      acc[`${h.headerName.value}`] = h.headerValue.value;
+      return acc;
+    }, {});
+
+  let downloadResult = await downloadFile(remoteObject, requestHeaders);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
   await updateStatus(remoteObject.subject.value, SUCCESS);
@@ -152,12 +160,19 @@ function calcTimeout(x){
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile (remoteObject) {
+async function downloadFile (remoteObject, headers) {
 
   return new Promise((resolve, reject) => {
 
     const url = remoteObject.url.value;
-    let r = request(url);
+
+    const requestBody = {url};
+
+    if(Object.keys(headers).length > 0){
+      requestBody['headers'] = headers;
+    }
+
+    let r = request(requestBody);
 
     r.on('response', (resp) => {
       //check things about the response here.
