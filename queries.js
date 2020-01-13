@@ -48,7 +48,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
 async function getRequestHeadersForRemoteDataObject(subject){
   const q = `
     PREFIX http: <http://www.w3.org/2011/http#>
-    PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http>
+    PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
 
     SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
