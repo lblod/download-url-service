@@ -2,8 +2,8 @@
 
 Microservice downloading a local copy of a remote file by URL.
 
-## Installation
-
+## Getting started
+### Add the service to a stack
 Add the following snippet in your `docker-compose.yml`:
 
 ```
@@ -50,14 +50,15 @@ Configure the [delta-notifier](https://github.com/mu-semtech/delta-notifier) to 
   }
 ```
 
-## Configuration
+## Reference
+### Configuration
 The following environment variales can be configured:
 * `DEFAULT_GRAPH`: graph to write the download event and file to
 * `CACHING_MAX_RETRIES`: number of attempts to download a file before the download event transitions to a failure state
 * `FILE_STORAGE`: absolute path inside the container in which the downloaded files must be stored
 * `PING_DB_INTERVAL`: interval in seconds to ping the database on startup of the service
 
-## Model
+### Model
 The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/file-download-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
 
 The download service will create a download event (`ndo:DownloadEvent`) and a local file data object (`nfo:LocalFileDataObject`) on succesfull download of the remote resource. The properties of these resources are specified below.
@@ -66,7 +67,7 @@ The model of this service is compliant with the model of the [file-service](http
 
 See also: http://oscaf.sourceforge.net/ndo.html#ndo:sec-file-downloads
 
-### Used prefixes
+#### Used prefixes
 | Prefix       | URI                                                       |
 |--------------|-----------------------------------------------------------|
 | dct          | http://purl.org/dc/terms/                                 |
@@ -76,10 +77,10 @@ See also: http://oscaf.sourceforge.net/ndo.html#ndo:sec-file-downloads
 | ndo          | http://oscaf.sourceforge.net/ndo.html# |
 | nuao         | http://www.semanticdesktop.org/ontologies/2010/01/25/nuao# |
 
-### Download event
-#### Class
+#### Download event
+##### Class
 `ndo:DownloadEvent`, `task:Task`
-#### Properties
+##### Properties
 | Name       | Predicate        | Range            | Definition                                                                                                                          |
 |------------|------------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------|
 | status     | `adms:status`    | `adms:Status`    | Status of the download                             |
@@ -87,22 +88,22 @@ See also: http://oscaf.sourceforge.net/ndo.html#ndo:sec-file-downloads
 | modified   | `dct:modified`   | `xsd:dateTime`   | Datetime on which the task was modified                                                                                             |
 | creator    | `dct:creator`    | `rdf:Resource`   | Creator of the task, in this case the download-url-service `<http://lblod.data.gift/services/download-url-service>` |
 | files      | `nuao:involves`   | `nfo:FileDataObject` | Files involved in the download event (remote file as well as local file) |
-
-### Remote file data object
+___
+#### Remote file data object
 Reflects the remote file that needs to be downloaded.
-#### Class
+##### Class
 `nfo:RemoteDataObject`
-#### Properties
+##### Properties
 See data model of the [file service](https://github.com/mu-semtech/file-service#resources).
-
-### Local file data object
+___
+#### Local file data object
 Reflects the local, downloaded copy of the remote file
-#### Class
+##### Class
 `nfo:FileDataObject`
-#### Properties
+##### Properties
 See data model of the [file service](https://github.com/mu-semtech/file-service#resources).
-
-### File download statuses
+___
+#### File download statuses
 The `adms:status` property of the `nfo:RemoteDataObject` reflects the status of the download. The following statuses are possible:
 
 | Status | URI |
