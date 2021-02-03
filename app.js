@@ -8,6 +8,7 @@ import { getRemoteDataObjectByStatus,
          updateDownloadEvent,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
+         saveHttpStatusCode,
          READY,
          ONGOING,
          SUCCESS,
@@ -172,6 +173,7 @@ async function downloadFile(remoteObject, headers) {
 
     try {
       let response = await fetch(requestBody.url, { headers: requestBody.headers });
+      await saveHttpStatusCode(remoteObject.subject.value, response.status);
       if (response.ok) { // res.status >= 200 && res.status < 300
         //--- Status: OK
         //--- create file attributes
@@ -197,7 +199,6 @@ async function downloadFile(remoteObject, headers) {
           cleanUpFile(localAddress);
           return { resource: remoteObject, error: err };
         }
-
       } else {
         //--- NO OK
         return {

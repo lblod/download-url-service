@@ -231,6 +231,19 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
   return await query( q );
 };
 
+async function saveHttpStatusCode(remoteUrl, statusCode){
+  let q = `
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(remoteUrl)} ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
+      }
+    }
+  `;
+  await query(q);
+}
+
 export { getRemoteDataObjectByStatus,
          getRequestHeadersForRemoteDataObject,
          updateStatus,
@@ -239,6 +252,7 @@ export { getRemoteDataObjectByStatus,
          updateDownloadEvent,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
+         saveHttpStatusCode,
          READY,
          ONGOING,
          SUCCESS,
