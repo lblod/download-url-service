@@ -178,7 +178,7 @@ async function downloadFile(remoteObject, headers) {
         let bareName = uuid();
         let physicalFileName = [bareName, extension].join('');
         let localAddress = path.join(FILE_STORAGE, physicalFileName);
-      
+
         //--- write the file
         try {
           response.body.pipe(fs.createWriteStream(localAddress));
