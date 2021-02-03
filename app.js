@@ -17,7 +17,6 @@ import { getRemoteDataObjectByStatus,
 import flatten from 'lodash.flatten';
 import uniq from 'lodash.uniq';
 import fetch from 'node-fetch';
-import request from 'request';
 import fs  from 'fs-extra';
 import mime from 'mime-types';
 import path from 'path';
@@ -100,8 +99,6 @@ async function performDownloadTask(remoteObject, downloadEventUri){
     }, {});
 
   let downloadResult = await downloadFile(remoteObject, requestHeaders);
-  if (downloadResult.error)
-    throw downloadResult.error;
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
   await updateStatus(remoteObject.subject.value, SUCCESS);
@@ -110,7 +107,7 @@ async function performDownloadTask(remoteObject, downloadEventUri){
 
 async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
   console.error(`Error for ${remoteObject.subject.value} and task ${downloadEventUri}`);
-  console.error(error);
+  console.error(error.message);
   await updateStatus(downloadEventUri, FAILURE);
   scheduleRetryProcessing(remoteObject, downloadEventUri);
 }
@@ -197,22 +194,18 @@ async function downloadFile(remoteObject, headers) {
           //--- We need to clean up on error during file writing
           console.log (`${localAddress} failed writing to disk, cleaning up...`);
           cleanUpFile(localAddress);
-          return { resource: remoteObject, error: err };
+          throw err;
         }
       } else {
         //--- NO OK
-        return {
-          resource: remoteObject,
-          result: response,
-          error: `Response code http ${response.status}`
-        };
+        throw Error(`Response code http ${response.status}`);
       }
     } catch (err) {
       console.error("Error while downloading a remote resource:");
       console.error(`  remote resource: ${remoteObject.subject.value}`);
       console.error(`  remote url: ${url}`);
       console.error(`  error: ${err}`);
-      return { resource: remoteObject, error: err };
+      throw err;
     }
 }
 
