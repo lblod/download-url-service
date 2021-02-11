@@ -25,7 +25,7 @@ import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
 
-const CACHING_MAX_RETRIES = 1; //parseInt(process.env.CACHING_MAX_RETRIES || 30);
+const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
