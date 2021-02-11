@@ -240,17 +240,18 @@ async function saveHttpStatusCode(remoteUrl, statusCode){
         ?url ext:httpStatusCode ?code.
       }
     }
-    INSERT {
-      GRAPH ?g {
-        ?url ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
-      }
-    }
     WHERE {
       BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
       BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
 
       GRAPH ?g {
         ?url ext:httpStatusCode ?code.
+      }
+    }
+    ;
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(remoteUrl)} ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
       }
     }
   `;
@@ -267,17 +268,18 @@ async function saveCacheError(remoteUrl, error){
         ?url ext:cacheError ?error.
       }
     }
-    INSERT {
-      GRAPH ?g {
-        ?url ext:cacheError ${sparqlEscapeString(error.toString())}.
-      }
-    }
     WHERE {
       BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
       BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
 
       GRAPH ?g {
         ?url ext:cacheError ?code.
+      }
+    }
+    ;
+    INSERT {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(remoteUrl)} ext:cacheError ${sparqlEscapeString(error.toString())}.
       }
     }
   `;
