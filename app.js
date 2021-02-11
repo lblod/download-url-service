@@ -8,6 +8,8 @@ import { getRemoteDataObjectByStatus,
          updateDownloadEvent,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
+         saveHttpStatusCode,
+         saveCacheError,
          READY,
          ONGOING,
          SUCCESS,
@@ -15,8 +17,7 @@ import { getRemoteDataObjectByStatus,
        } from './queries';
 import flatten from 'lodash.flatten';
 import uniq from 'lodash.uniq';
-
-import request from 'request';
+import fetch from 'node-fetch';
 import fs  from 'fs-extra';
 import mime from 'mime-types';
 import path from 'path';
@@ -107,7 +108,7 @@ async function performDownloadTask(remoteObject, downloadEventUri){
 
 async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
   console.error(`Error for ${remoteObject.subject.value} and task ${downloadEventUri}`);
-  console.error(error);
+  console.error(error.message);
   await updateStatus(downloadEventUri, FAILURE);
   scheduleRetryProcessing(remoteObject, downloadEventUri);
 }
@@ -160,66 +161,54 @@ function calcTimeout(x){
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile (remoteObject, headers) {
-
-  return new Promise((resolve, reject) => {
-
+async function downloadFile(remoteObject, headers) {
     const url = remoteObject.url.value;
 
     const requestBody = {url};
-
     if(Object.keys(headers).length > 0){
       requestBody['headers'] = headers;
     }
 
-    let r = request(requestBody);
-
-    r.on('response', (resp) => {
-      //check things about the response here.
-      const code = resp.statusCode;
-
-      //Note: by default, redirects are followed :-)
-      if (200 <= code && code < 300) {
+    try {
+      let response = await fetch(requestBody.url, { headers: requestBody.headers });
+      await saveHttpStatusCode(remoteObject.subject.value, response.status);
+      if (response.ok) { // res.status >= 200 && res.status < 300
         //--- Status: OK
         //--- create file attributes
-        let extension = getExtensionFrom(resp.headers);
+        let extension = getExtensionFrom(response.headers);
         let bareName = uuid();
-        let physicalFileName = [bareName, extension].join('.');
+        let physicalFileName = [bareName, extension].join('');
         let localAddress = path.join(FILE_STORAGE, physicalFileName);
 
         //--- write the file
-        r.pipe(fs.createWriteStream(localAddress))
-          .on('error', err => {
-            //--- We need to clean up on error during file writing
-            console.log (`${localAddress} failed writing to disk, cleaning up...`);
-            cleanUpFile(localAddress);
-            reject({resource: remoteObject, error: err});
-          })
-          .on('finish', () => {
-            resolve({
-                  resource: remoteObject,
-                  result: resp,
-                  cachedFileAddress: localAddress,
-                  cachedFileName: physicalFileName,
-                  bareName: bareName,
-                  extension: extension
-            });
-          });
-      }
-      else {
+        try {
+          response.body.pipe(fs.createWriteStream(localAddress));
+          return {
+            resource: remoteObject,
+            result: response,
+            cachedFileAddress: localAddress,
+            cachedFileName: physicalFileName,
+            bareName: bareName,
+            extension: extension
+          };
+        } catch(err) {
+          //--- We need to clean up on error during file writing
+          console.log (`${localAddress} failed writing to disk, cleaning up...`);
+          cleanUpFile(localAddress);
+          throw err;
+        }
+      } else {
         //--- NO OK
-        reject({ resource: remoteObject, result: resp, error: `Response code http ${code}` });
+        throw Error(`Response code http ${response.status}`);
       }
-    });
-
-    r.on('error', (err) => {
+    } catch (err) {
       console.error("Error while downloading a remote resource:");
       console.error(`  remote resource: ${remoteObject.subject.value}`);
       console.error(`  remote url: ${url}`);
       console.error(`  error: ${err}`);
-      reject({resource: remoteObject, error: err});
-    });
-  });
+      await saveCacheError(remoteObject.subject.value, err);
+      throw err;
+    }
 }
 
 /**
@@ -257,6 +246,7 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
     console.error(err);
     console.error(`  downloaded file: ${downloadResult.cachedFileAddress}`);
     console.error(`  FileAddress object: ${uri}`);
+    await saveCacheError(uri, err);
     throw err;
   }
 }

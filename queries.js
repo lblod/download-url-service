@@ -231,6 +231,61 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
   return await query( q );
 };
 
+async function saveHttpStatusCode(remoteUrl, statusCode){
+  let q = `
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    DELETE {
+      GRAPH ?g {
+        ?url ext:httpStatusCode ?code.
+      }
+    }
+    WHERE {
+      BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
+      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
+
+      GRAPH ?g {
+        ?url ext:httpStatusCode ?code.
+      }
+    }
+    ;
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(remoteUrl)} ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
+      }
+    }
+  `;
+  await query(q);
+}
+
+async function saveCacheError(remoteUrl, error){
+  let q = `
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    DELETE {
+      GRAPH ?g {
+
+        ?url ext:cacheError ?error.
+      }
+    }
+    WHERE {
+      BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
+      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
+
+      GRAPH ?g {
+        ?url ext:cacheError ?code.
+      }
+    }
+    ;
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(remoteUrl)} ext:cacheError ${sparqlEscapeString(error.toString())}.
+      }
+    }
+  `;
+  await query(q);
+}
+
 export { getRemoteDataObjectByStatus,
          getRequestHeadersForRemoteDataObject,
          updateStatus,
@@ -239,6 +294,8 @@ export { getRemoteDataObjectByStatus,
          updateDownloadEvent,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
+         saveHttpStatusCode,
+         saveCacheError,
          READY,
          ONGOING,
          SUCCESS,
