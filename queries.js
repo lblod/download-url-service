@@ -277,7 +277,7 @@ async function saveCacheError(remoteUrl, error){
       }
     }
     ;
-    INSERT {
+    INSERT DATA {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(remoteUrl)} ext:cacheError ${sparqlEscapeString(error.toString())}.
       }
