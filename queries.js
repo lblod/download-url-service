@@ -235,9 +235,27 @@ async function saveHttpStatusCode(remoteUrl, statusCode){
   let q = `
     PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-    INSERT DATA {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(remoteUrl)} ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
+    DELETE {
+      GRAPH ?g {
+        ?url ext:httpStatusCode ?code.
+      }
+    }
+    INSERT {
+      GRAPH ?g {
+        ?url ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
+      }
+    }
+    WHERE {
+      BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
+      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
+
+      GRAPH ?g {
+        ?url ext:httpStatusCode ?code.
+      }
+    }
+  `;
+  await query(q);
+}
       }
     }
   `;
