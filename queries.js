@@ -256,6 +256,28 @@ async function saveHttpStatusCode(remoteUrl, statusCode){
   `;
   await query(q);
 }
+
+async function saveCacheError(remoteUrl, error){
+  let q = `
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    DELETE {
+      GRAPH ?g {
+
+        ?url ext:cacheError ?error.
+      }
+    }
+    INSERT {
+      GRAPH ?g {
+        ?url ext:cacheError ${sparqlEscapeString(error.toString())}.
+      }
+    }
+    WHERE {
+      BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
+      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
+
+      GRAPH ?g {
+        ?url ext:cacheError ?code.
       }
     }
   `;
@@ -271,6 +293,7 @@ export { getRemoteDataObjectByStatus,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
          saveHttpStatusCode,
+         saveCacheError,
          READY,
          ONGOING,
          SUCCESS,

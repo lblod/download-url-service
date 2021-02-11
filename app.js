@@ -9,6 +9,7 @@ import { getRemoteDataObjectByStatus,
          createPhysicalFileDataObject,
          updateDownloadEventOnSuccess,
          saveHttpStatusCode,
+         saveCacheError,
          READY,
          ONGOING,
          SUCCESS,
@@ -170,7 +171,7 @@ async function downloadFile(remoteObject, headers) {
 
     try {
       let response = await fetch(requestBody.url, { headers: requestBody.headers });
-      await saveHttpStatusCode(remoteObject.subject.value, response.status);
+      await saveHttpStatusCode(url, response.status);
       if (response.ok) { // res.status >= 200 && res.status < 300
         //--- Status: OK
         //--- create file attributes
@@ -205,6 +206,7 @@ async function downloadFile(remoteObject, headers) {
       console.error(`  remote resource: ${remoteObject.subject.value}`);
       console.error(`  remote url: ${url}`);
       console.error(`  error: ${err}`);
+      await saveCacheError(url, err);
       throw err;
     }
 }
@@ -244,6 +246,7 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
     console.error(err);
     console.error(`  downloaded file: ${downloadResult.cachedFileAddress}`);
     console.error(`  FileAddress object: ${uri}`);
+    await saveCacheError(uri, err);
     throw err;
   }
 }
