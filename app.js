@@ -171,7 +171,7 @@ async function downloadFile(remoteObject, headers) {
 
     try {
       let response = await fetch(requestBody.url, { headers: requestBody.headers });
-      await saveHttpStatusCode(url, response.status);
+      await saveHttpStatusCode(remoteObject.subject.value, response.status);
       if (response.ok) { // res.status >= 200 && res.status < 300
         //--- Status: OK
         //--- create file attributes
@@ -206,7 +206,7 @@ async function downloadFile(remoteObject, headers) {
       console.error(`  remote resource: ${remoteObject.subject.value}`);
       console.error(`  remote url: ${url}`);
       console.error(`  error: ${err}`);
-      await saveCacheError(url, err);
+      await saveCacheError(remoteObject.subject.value, err);
       throw err;
     }
 }
