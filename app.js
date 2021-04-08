@@ -277,6 +277,6 @@ function getContentTypeFrom(headers) {
  * @param {array} headers HTML response header
  */
 function getExtensionFrom(headers) {
-  const mimeType = headers['content-type'];
-  return mime.extension(mimeType) || DEFAULT_EXTENSION;
+  const contentType = headers.get('content-type');
+  return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
 }
