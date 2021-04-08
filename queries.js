@@ -52,7 +52,7 @@ async function getRequestHeadersForRemoteDataObject(subject){
 
     SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-       ?s rpioHttp:requestHeader ?header.
+       ${sparqlEscapeUri(subject.value)} rpioHttp:requestHeader ?header.
        ?header http:fieldValue ?headerValue.
        ?header http:fieldName ?headerName.
      }
