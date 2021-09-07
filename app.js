@@ -182,7 +182,7 @@ async function downloadFile(remoteObject, headers) {
 
         //--- write the file
         try {
-          response.body.pipe(fs.createWriteStream(localAddress));
+          await saveFileToDisk(response, localAddress);
           return {
             resource: remoteObject,
             result: response,
@@ -279,4 +279,19 @@ function getContentTypeFrom(headers) {
 function getExtensionFrom(headers) {
   const contentType = headers.get('content-type');
   return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
+}
+
+/**
+ * Save file, async way
+ *
+ * @param res Response of the fetch to download the file
+ * @param address Location to save the file
+ */
+async function saveFileToDisk(res, address) {
+  return new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(address);
+    res.body.pipe(writeStream);
+    writeStream.on('close', () => resolve());
+    writeStream.on('error', reject);
+  });
 }
