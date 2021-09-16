@@ -2,6 +2,7 @@ import { app, errorHandler, uuid } from 'mu';
 import { waitForDatabase } from './database-utils';
 import { getRemoteDataObjectByStatus,
          getRequestHeadersForRemoteDataObject,
+         getCredentialsForRemoteDataObject,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,
@@ -10,10 +11,12 @@ import { getRemoteDataObjectByStatus,
          updateDownloadEventOnSuccess,
          saveHttpStatusCode,
          saveCacheError,
+         getRemoteDataObject,
          READY,
          ONGOING,
          SUCCESS,
-         FAILURE
+         FAILURE,
+         BASIC_AUTH
        } from './queries';
 import flatten from 'lodash.flatten';
 import uniq from 'lodash.uniq';
@@ -58,6 +61,20 @@ app.post('/process-remote-data-objects', async function( req, res ){
   res.send({message: `Started.`});
 });
 
+// Endpoint to ease developpment
+app.post('/process-remote-data-object/:uuid', async function(req, res, next) {
+  const uuid = req.params.uuid;
+  try {
+    const remoteDataObjectUri = await getRemoteDataObject(uuid);
+    console.log(`Found new remote data object ${remoteDataObjectUri} with uuid ${uuid}`);
+    processDownloads([remoteDataObjectUri]);
+    res.send({message: `Started.`});
+  } catch (e) {
+    console.log(`Something went wrong while retrieving remote data object with id ${uuid}`);
+    console.log(e);
+  }
+});
+
 app.use(errorHandler);
 
 function getRemoteDataObjectsFromDelta(delta) {
@@ -99,7 +116,9 @@ async function performDownloadTask(remoteObject, downloadEventUri){
       return acc;
     }, {});
 
-  let downloadResult = await downloadFile(remoteObject, requestHeaders);
+  const credentialsInfo = await getCredentialsForRemoteDataObject(remoteObject.subject);
+
+  let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsInfo);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
   await updateStatus(remoteObject.subject.value, SUCCESS);
@@ -161,12 +180,17 @@ function calcTimeout(x){
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile(remoteObject, headers) {
+async function downloadFile(remoteObject, headers, credentialsInfo) {
     const url = remoteObject.url.value;
 
     const requestBody = {url};
     if(Object.keys(headers).length > 0){
       requestBody['headers'] = headers;
+    }
+
+    if (credentialsInfo.securityConfigurationType.value == BASIC_AUTH) {
+      const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).toString('base64')
+      requestBody['headers'].Authorization = `Basic ${encodedCredentials}`;
     }
 
     try {

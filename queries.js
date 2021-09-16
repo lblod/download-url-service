@@ -6,6 +6,7 @@ const READY = 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached'
 const ONGOING = 'http://lblod.data.gift/file-download-statuses/ongoing';
 const SUCCESS = 'http://lblod.data.gift/file-download-statuses/success';
 const FAILURE = 'http://lblod.data.gift/file-download-statuses/failure';
+const BASIC_AUTH = 'https://www.w3.org/2019/wot/security#BasicSecurityScheme';
 
 /**
  * get remote data objects
@@ -29,14 +30,15 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
-    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri WHERE{
+    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri ?securityConfigurationType
+    WHERE {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ?subject a nfo:RemoteDataObject .
         ${subjectValues}
         ?subject mu:uuid ?uuid;
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
-         OPTIONAL { ?downloadEventUri nuao:involves ?subject }
+        OPTIONAL { ?downloadEventUri nuao:involves ?subject }
       }
     }
   `;
@@ -62,6 +64,29 @@ async function getRequestHeadersForRemoteDataObject(subject){
   const result = await query(q);
   return result.results.bindings || [];
 };
+
+async function getCredentialsForRemoteDataObject(subject){
+  const q = `
+    PREFIX http: <http://www.w3.org/2011/http#>
+    PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
+    PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+    SELECT DISTINCT ?securityConfigurationType ?user ?pass WHERE {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+        ?configuration dgftSec:securityConfiguration/rdf:type ?securityConfigurationType ;
+          dgftSec:secrets ?secrets .
+        ?secrets <http://rdf.myexperiment.org/ontologies/base/username> ?user ;
+          <http://mu.semte.ch/vocabularies/account/password> ?pass .
+      }
+    }
+  `;
+  await query(q);
+  const result = await query(q);
+  return result.results.bindings[0] || null;
+};
+
 
 async function updateStatus(uri, newStatusUri){
   let q = `
@@ -286,8 +311,23 @@ async function saveCacheError(remoteUrl, error){
   await query(q);
 }
 
+async function getRemoteDataObject(uuid){
+  let q = `
+    PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
+
+    SELECT DISTINCT ?s WHERE {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ?s mu:uuid ${sparqlEscapeString(uuid)}.
+      }
+    }
+  `;
+  let result = await query(q);
+  return result.results.bindings ? result.results.bindings[0].s.value : null;
+}
+
 export { getRemoteDataObjectByStatus,
          getRequestHeadersForRemoteDataObject,
+         getCredentialsForRemoteDataObject,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,
@@ -296,8 +336,10 @@ export { getRemoteDataObjectByStatus,
          updateDownloadEventOnSuccess,
          saveHttpStatusCode,
          saveCacheError,
+         getRemoteDataObject,
          READY,
          ONGOING,
          SUCCESS,
-         FAILURE
+         FAILURE,
+         BASIC_AUTH
        }
