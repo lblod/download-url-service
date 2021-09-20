@@ -2,7 +2,9 @@ import { app, errorHandler, uuid } from 'mu';
 import { waitForDatabase } from './database-utils';
 import { getRemoteDataObjectByStatus,
          getRequestHeadersForRemoteDataObject,
-         getCredentialsForRemoteDataObject,
+         getCredentialsTypeForRemoteDataObject,
+         getBasicCredentialsForRemoteDataObject,
+         getOauthCredentialsForRemoteDataObject,
          updateStatus,
          createDownloadEvent,
          getDownloadEvent,
@@ -12,11 +14,13 @@ import { getRemoteDataObjectByStatus,
          saveHttpStatusCode,
          saveCacheError,
          getRemoteDataObject,
+         deleteCredentials,
          READY,
          ONGOING,
          SUCCESS,
          FAILURE,
-         BASIC_AUTH
+         BASIC_AUTH,
+         OAUTH2
        } from './queries';
 import flatten from 'lodash.flatten';
 import uniq from 'lodash.uniq';
@@ -27,9 +31,11 @@ import path from 'path';
 import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
+import ClientOAuth2 from 'client-oauth2';
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
+const DELETE_CREDENTIALS = process.env.DELETE_CREDENTIALS || 'false';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 
@@ -116,10 +122,16 @@ async function performDownloadTask(remoteObject, downloadEventUri){
       return acc;
     }, {});
 
-  const credentialsInfo = await getCredentialsForRemoteDataObject(remoteObject.subject);
+  const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
-  let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsInfo);
+  let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
+
+  if (DELETE_CREDENTIALS) {
+    await deleteCredentials(remoteObject, credentialsType);
+    console.log(`Credentials deleted for ${remoteObject.subject.value}`)
+  }
+
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
   await updateStatus(remoteObject.subject.value, SUCCESS);
   console.log(`Processed ${remoteObject.subject.value}, with url: ${remoteObject.url.value}`);
@@ -180,21 +192,46 @@ function calcTimeout(x){
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile(remoteObject, headers, credentialsInfo) {
+async function downloadFile(remoteObject, headers, credentialsType) {
     const url = remoteObject.url.value;
 
-    const requestBody = {url};
-    if(Object.keys(headers).length > 0){
-      requestBody['headers'] = headers;
+    const requestBody = { url };
+    if (Object.keys(headers).length > 0) {
+      requestBody.options = { headers };
     }
 
-    if (credentialsInfo.securityConfigurationType.value == BASIC_AUTH) {
+    if (credentialsType == BASIC_AUTH) {
+      const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
       const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).toString('base64')
-      requestBody['headers'].Authorization = `Basic ${encodedCredentials}`;
+      requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
+    }
+
+    if (credentialsType == OAUTH2) {
+      const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
+
+      const body = {
+        'client_id': credentialsInfo.clientId.value,
+        'client_secret': credentialsInfo.clientSecret.value,
+        'resource': credentialsInfo.redirectUri.value,
+      }
+      const oauthClient = new ClientOAuth2({
+        clientId: credentialsInfo.clientId.value,
+        clientSecret: credentialsInfo.clientSecret.value,
+        accessTokenUri: credentialsInfo.accessTokenUri.value,
+        redirectUri: credentialsInfo.redirectUri.value,
+        authorizationGrants: ['credentials'],
+        body: body
+      });
+      const tokenResponse = await oauthClient.credentials.getToken();
+
+      requestBody.options = tokenResponse.sign({
+        method: 'GET',
+        url: requestBody.url
+      });
     }
 
     try {
-      let response = await fetch(requestBody.url, { headers: requestBody.headers });
+      let response = await fetch(requestBody.url, requestBody.options);
       await saveHttpStatusCode(remoteObject.subject.value, response.status);
       if (response.ok) { // res.status >= 200 && res.status < 300
         //--- Status: OK
