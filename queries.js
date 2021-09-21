@@ -31,7 +31,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
-    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri ?securityConfigurationType
+    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri
     WHERE {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ?subject a nfo:RemoteDataObject .
@@ -80,7 +80,7 @@ async function getCredentialsTypeForRemoteDataObject(subject){
   `;
   await query(q);
   const result = await query(q);
-  return result.results.bindings ? result.results.bindings[0].securityConfigurationType.value : null;
+  return result.results.bindings[0] ? result.results.bindings[0].securityConfigurationType.value : null;
 };
 
 async function getBasicCredentialsForRemoteDataObject(subject){
@@ -290,7 +290,7 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
       }
     }
   `;
-  return await update( q );
+  return await update(q);
 };
 
 async function saveHttpStatusCode(remoteUrl, statusCode){

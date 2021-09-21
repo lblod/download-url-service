@@ -127,13 +127,15 @@ async function performDownloadTask(remoteObject, downloadEventUri){
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
-  if (DELETE_CREDENTIALS) {
+  if (credentialsType && DELETE_CREDENTIALS) {
     await deleteCredentials(remoteObject, credentialsType);
     console.log(`Credentials deleted for ${remoteObject.subject.value}`)
   }
 
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
+
   await updateStatus(remoteObject.subject.value, SUCCESS);
+
   console.log(`Processed ${remoteObject.subject.value}, with url: ${remoteObject.url.value}`);
 }
 
