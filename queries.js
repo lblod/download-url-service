@@ -70,10 +70,12 @@ async function getCredentialsTypeForRemoteDataObject(subject){
   const q = `
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT ?securityConfigurationType WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+      GRAPH ?g {
+        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
+          dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
       }
     }
@@ -88,10 +90,12 @@ async function getBasicCredentialsForRemoteDataObject(subject){
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
     PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT DISTINCT ?user ?pass WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+      GRAPH ?g {
+        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
+          dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:secrets ?secrets .
         ?secrets meb:username ?user ;
           muAccount:password ?pass .
