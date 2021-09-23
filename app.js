@@ -213,9 +213,11 @@ async function downloadFile(remoteObject, headers, credentialsType) {
 
     const body = {
       'client_id': credentialsInfo.clientId.value,
-      'client_secret': credentialsInfo.clientSecret.value,
-      'resource': credentialsInfo.resource.value
+      'client_secret': credentialsInfo.clientSecret.value
     };
+    if (credentialsInfo.resource && credentialsInfo.resource.value)
+      body['resource'] = credentialsInfo.resource.value;
+
     const oauthClient = new ClientOAuth2({
       clientId: credentialsInfo.clientId.value,
       clientSecret: credentialsInfo.clientSecret.value,

@@ -122,8 +122,8 @@ async function getOauthCredentialsForRemoteDataObject(subject) {
           dgftSec:securityConfiguration ?securityConfiguration .
         ?secrets oauthSession:clientId ?clientId ;
           oauthSession:clientSecret ?clientSecret .
-        ?securityConfiguration oauthSession:resource ?resource ;
-          security:token ?accessTokenUri .
+        ?securityConfiguration security:token ?accessTokenUri .  
+        OPTIONAL {?securityConfiguration oauthSession:resource ?resource .}.
       }
     }
   `;
