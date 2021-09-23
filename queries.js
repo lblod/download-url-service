@@ -48,7 +48,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
   return result.results.bindings || [];
 };
 
-async function getRequestHeadersForRemoteDataObject(subject){
+async function getRequestHeadersForRemoteDataObject(subject) {
   const q = `
     PREFIX http: <http://www.w3.org/2011/http#>
     PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
@@ -66,7 +66,7 @@ async function getRequestHeadersForRemoteDataObject(subject){
   return result.results.bindings || [];
 };
 
-async function getCredentialsTypeForRemoteDataObject(subject){
+async function getCredentialsTypeForRemoteDataObject(subject) {
   const q = `
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -83,7 +83,7 @@ async function getCredentialsTypeForRemoteDataObject(subject){
   return result.results.bindings[0] ? result.results.bindings[0].securityConfigurationType.value : null;
 };
 
-async function getBasicCredentialsForRemoteDataObject(subject){
+async function getBasicCredentialsForRemoteDataObject(subject) {
   const q = `
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
@@ -103,20 +103,20 @@ async function getBasicCredentialsForRemoteDataObject(subject){
   return result.results.bindings[0] || null;
 };
 
-async function getOauthCredentialsForRemoteDataObject(subject){
+async function getOauthCredentialsForRemoteDataObject(subject) {
   const q = `
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
     PREFIX security: <https://www.w3.org/2019/wot/security#>
 
-    SELECT DISTINCT ?clientId ?clientSecret ?resource ?accessTokenUri ?redirectUri WHERE {
+    SELECT DISTINCT ?clientId ?clientSecret ?resource ?accessTokenUri WHERE {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:secrets ?secrets ;
           dgftSec:securityConfiguration ?securityConfiguration .
         ?secrets oauthSession:clientId ?clientId ;
           oauthSession:clientSecret ?clientSecret .
-        ?securityConfiguration oauthSession:resource ?redirectUri ;
+        ?securityConfiguration oauthSession:resource ?resource ;
           security:token ?accessTokenUri .
       }
     }
@@ -126,7 +126,7 @@ async function getOauthCredentialsForRemoteDataObject(subject){
   return result.results.bindings[0] || null;
 };
 
-async function updateStatus(uri, newStatusUri){
+async function updateStatus(uri, newStatusUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
 
@@ -150,7 +150,7 @@ async function updateStatus(uri, newStatusUri){
   await update(q);
 }
 
-async function createDownloadEvent(remoteDataObjectUri){
+async function createDownloadEvent(remoteDataObjectUri) {
   let sUuid = uuid();
   let subject = `http://lblod.data.gift/download-events/${sUuid}`;
   let created = Date.now();
@@ -181,7 +181,7 @@ async function createDownloadEvent(remoteDataObjectUri){
   return subject;
 }
 
-async function getDownloadEvent(subjectUri){
+async function getDownloadEvent(subjectUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
@@ -204,10 +204,10 @@ async function getDownloadEvent(subjectUri){
     }
   `;
   let result = await query(q);
-  return  (result.results.bindings || [])[0];
+  return (result.results.bindings || [])[0];
 }
 
-async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
+async function updateDownloadEvent(uri, numberOfRetries, newStatusUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
@@ -236,7 +236,7 @@ async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
   await update(q);
 }
 
-async function updateDownloadEventOnSuccess(uri, fileUri){
+async function updateDownloadEventOnSuccess(uri, fileUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
@@ -263,8 +263,8 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
   await update(q);
 }
 
-async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, type, fileSize, extension, created){
-  if(!fileObjectUri.startsWith('share://')) throw Error('File URI should start with share://');
+async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, type, fileSize, extension, created) {
+  if (!fileObjectUri.startsWith('share://')) throw Error('File URI should start with share://');
 
   const uid = uuid();
   let q = `
@@ -293,7 +293,7 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
   return await update(q);
 };
 
-async function saveHttpStatusCode(remoteUrl, statusCode){
+async function saveHttpStatusCode(remoteUrl, statusCode) {
   let q = `
     PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
@@ -320,7 +320,7 @@ async function saveHttpStatusCode(remoteUrl, statusCode){
   await update(q);
 }
 
-async function saveCacheError(remoteUrl, error){
+async function saveCacheError(remoteUrl, error) {
   let q = `
     PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
@@ -348,7 +348,7 @@ async function saveCacheError(remoteUrl, error){
   await update(q);
 }
 
-async function getRemoteDataObject(uuid){
+async function getRemoteDataObject(uuid) {
   let q = `
     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
 
@@ -362,11 +362,14 @@ async function getRemoteDataObject(uuid){
   return result.results.bindings ? result.results.bindings[0].s.value : null;
 }
 
-
 async function deleteCredentials(remoteDataObject, credentialsType) {
-  let q = '';
-  if (credentialsType == BASIC_AUTH) {
-    q = `
+
+  if (!credentialsType)
+    credentialsType = await getCredentialsTypeForRemoteDataObject(remoteDataObject.subject);
+
+  switch (credentialsType) {
+    case BASIC_AUTH:
+      await update(`
       PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
       PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
       PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
@@ -385,9 +388,10 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
             muAccount:password ?pass .
         }
       }
-    `;
-  } else if (credentialsType == OAUTH2) {
-    q = `
+    `);
+      break;
+    case OAUTH2:
+      await update(`
       PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
       PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
       PREFIX security: <https://www.w3.org/2019/wot/security#>
@@ -406,30 +410,33 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
             oauthSession:clientSecret ?clientSecret .
         }
       }
-    `;
+    `);
+      break;
+    default:
+      return false;
   }
-  await update(q);
 }
 
-export { getRemoteDataObjectByStatus,
-         getRequestHeadersForRemoteDataObject,
-         getCredentialsTypeForRemoteDataObject,
-         getBasicCredentialsForRemoteDataObject,
-         getOauthCredentialsForRemoteDataObject,
-         deleteCredentials,
-         updateStatus,
-         createDownloadEvent,
-         getDownloadEvent,
-         updateDownloadEvent,
-         createPhysicalFileDataObject,
-         updateDownloadEventOnSuccess,
-         saveHttpStatusCode,
-         saveCacheError,
-         getRemoteDataObject,
-         READY,
-         ONGOING,
-         SUCCESS,
-         FAILURE,
-         BASIC_AUTH,
-         OAUTH2
-       }
+export {
+  getRemoteDataObjectByStatus,
+  getRequestHeadersForRemoteDataObject,
+  getCredentialsTypeForRemoteDataObject,
+  getBasicCredentialsForRemoteDataObject,
+  getOauthCredentialsForRemoteDataObject,
+  deleteCredentials,
+  updateStatus,
+  createDownloadEvent,
+  getDownloadEvent,
+  updateDownloadEvent,
+  createPhysicalFileDataObject,
+  updateDownloadEventOnSuccess,
+  saveHttpStatusCode,
+  saveCacheError,
+  getRemoteDataObject,
+  READY,
+  ONGOING,
+  SUCCESS,
+  FAILURE,
+  BASIC_AUTH,
+  OAUTH2
+};

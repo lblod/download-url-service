@@ -1,31 +1,32 @@
 import { app, errorHandler, uuid } from 'mu';
 import { waitForDatabase } from './database-utils';
-import { getRemoteDataObjectByStatus,
-         getRequestHeadersForRemoteDataObject,
-         getCredentialsTypeForRemoteDataObject,
-         getBasicCredentialsForRemoteDataObject,
-         getOauthCredentialsForRemoteDataObject,
-         updateStatus,
-         createDownloadEvent,
-         getDownloadEvent,
-         updateDownloadEvent,
-         createPhysicalFileDataObject,
-         updateDownloadEventOnSuccess,
-         saveHttpStatusCode,
-         saveCacheError,
-         getRemoteDataObject,
-         deleteCredentials,
-         READY,
-         ONGOING,
-         SUCCESS,
-         FAILURE,
-         BASIC_AUTH,
-         OAUTH2
-       } from './queries';
+import {
+  getRemoteDataObjectByStatus,
+  getRequestHeadersForRemoteDataObject,
+  getCredentialsTypeForRemoteDataObject,
+  getBasicCredentialsForRemoteDataObject,
+  getOauthCredentialsForRemoteDataObject,
+  updateStatus,
+  createDownloadEvent,
+  getDownloadEvent,
+  updateDownloadEvent,
+  createPhysicalFileDataObject,
+  updateDownloadEventOnSuccess,
+  saveHttpStatusCode,
+  saveCacheError,
+  getRemoteDataObject,
+  deleteCredentials,
+  READY,
+  ONGOING,
+  SUCCESS,
+  FAILURE,
+  BASIC_AUTH,
+  OAUTH2
+} from './queries';
 import flatten from 'lodash.flatten';
 import uniq from 'lodash.uniq';
 import fetch from 'node-fetch';
-import fs  from 'fs-extra';
+import fs from 'fs-extra';
 import mime from 'mime-types';
 import path from 'path';
 import RootCas from 'ssl-root-cas/latest';
@@ -35,7 +36,6 @@ import ClientOAuth2 from 'client-oauth2';
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
-const DELETE_CREDENTIALS = process.env.DELETE_CREDENTIALS || 'false';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 
@@ -52,14 +52,17 @@ https.globalAgent.options.ca = rootCas;
 
 waitForDatabase(rescheduleTasksOnStart);
 
-app.use( bodyParser.json( { type: function(req) { return /^application\/json/.test( req.get('content-type') ); } } ) );
+app.use(bodyParser.json({
+  type: function(req) {
+    return /^application\/json/.test(req.get('content-type'));
+  }
+}));
 
-
-app.get('/', function( req, res ) {
+app.get('/', function(req, res) {
   res.send(`Welcome to the dowload url service.`);
 });
 
-app.post('/process-remote-data-objects', async function( req, res ){
+app.post('/process-remote-data-objects', async function(req, res) {
   const delta = req.body;
   const remoteDataObjectUris = getRemoteDataObjectsFromDelta(delta);
   console.log(`Found ${remoteDataObjectUris.length} new remote data objects in the delta message`);
@@ -67,7 +70,7 @@ app.post('/process-remote-data-objects', async function( req, res ){
   res.send({message: `Started.`});
 });
 
-// Endpoint to ease developpment
+// Endpoint to ease development
 app.post('/process-remote-data-object/:uuid', async function(req, res, next) {
   const uuid = req.params.uuid;
   try {
@@ -85,12 +88,12 @@ app.use(errorHandler);
 
 function getRemoteDataObjectsFromDelta(delta) {
   const inserts = flatten(delta.map(changeSet => changeSet.inserts));
-  const remoteDataObjectUris = inserts.filter( triple => {
+  const remoteDataObjectUris = inserts.filter(triple => {
     return triple.predicate.type == 'uri'
-      && triple.predicate.value == 'http://www.w3.org/ns/adms#status'
-      && triple.object.type == 'uri'
-      && triple.object.value == 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
-  }).map( triple => triple.subject.value );
+        && triple.predicate.value == 'http://www.w3.org/ns/adms#status'
+        && triple.object.type == 'uri'
+        && triple.object.value == 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
+  }).map(triple => triple.subject.value);
   return uniq(remoteDataObjectUris);
 }
 
@@ -98,39 +101,34 @@ async function processDownloads(remoteDataObjectUris) {
   const remoteObjects = await getRemoteDataObjectByStatus(READY, remoteDataObjectUris);
 
   //create associated download events and lock in DB.
-  for(let o of remoteObjects){
+  for (let o of remoteObjects) {
     let dlEventUri = await createDownloadEvent(o.subject.value);
     await updateStatus(o.subject.value, ONGOING);
     o.dlEventUri = dlEventUri;
   }
 
-  for(let o of remoteObjects){
+  for (let o of remoteObjects) {
     try {
       await performDownloadTask(o, o.dlEventUri);
-    }
-    catch(error){
+    } catch (error) {
       handleDownloadTaskError(error, o, o.dlEventUri);
     }
   }
 }
 
-async function performDownloadTask(remoteObject, downloadEventUri){
+async function performDownloadTask(remoteObject, downloadEventUri) {
   let requestHeaders = await getRequestHeadersForRemoteDataObject(remoteObject.subject);
-  requestHeaders = requestHeaders
-    .reduce((acc, h) => {
-      acc[`${h.headerName.value}`] = h.headerValue.value;
-      return acc;
-    }, {});
+  requestHeaders = requestHeaders.reduce((acc, h) => {
+    acc[`${h.headerName.value}`] = h.headerValue.value;
+    return acc;
+  }, {});
 
   const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
-  if (credentialsType && DELETE_CREDENTIALS) {
-    await deleteCredentials(remoteObject, credentialsType);
-    console.log(`Credentials deleted for ${remoteObject.subject.value}`)
-  }
+  await deleteCredentials(remoteObject, credentialsType);
 
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
 
@@ -139,53 +137,54 @@ async function performDownloadTask(remoteObject, downloadEventUri){
   console.log(`Processed ${remoteObject.subject.value}, with url: ${remoteObject.url.value}`);
 }
 
-async function handleDownloadTaskError(error, remoteObject, downloadEventUri){
+async function handleDownloadTaskError(error, remoteObject, downloadEventUri) {
   console.error(`Error for ${remoteObject.subject.value} and task ${downloadEventUri}`);
   console.error(error.message);
   await updateStatus(downloadEventUri, FAILURE);
   scheduleRetryProcessing(remoteObject, downloadEventUri);
 }
 
-async function scheduleRetryProcessing(remoteObject, downloadEventUri){
+async function scheduleRetryProcessing(remoteObject, downloadEventUri) {
   let downloadEvent = await getDownloadEvent(downloadEventUri);
-  console.log(`Download event ${downloadEventUri} retried ${downloadEvent.numberOfRetries.value}/${CACHING_MAX_RETRIES} already`);
-  if(downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES){
+  console.log(
+      `Download event ${downloadEventUri} retried ${downloadEvent.numberOfRetries.value}/${CACHING_MAX_RETRIES} already`);
+  if (downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES) {
     await updateStatus(remoteObject.subject.value, FAILURE);
     await updateStatus(downloadEventUri, FAILURE);
     console.log(`Stopping retries for ${remoteObject.subject.value} and task ${downloadEventUri})`);
+    await deleteCredentials(remoteObject);
     return;
   }
 
   let waitTime = calcTimeout(parseInt(downloadEvent.numberOfRetries.value));
-  console.log(`Expecting next retry for ${remoteObject.subject.value} and task ${downloadEventUri} in about ${waitTime/1000} seconds`);
+  console.log(`Expecting next retry for ${remoteObject.subject.value} and task ${downloadEventUri} in about ${waitTime /
+  1000} seconds`);
   setTimeout(async () => {
     try {
       console.log(`Retry for ${remoteObject.subject.value} and task ${downloadEventUri}`);
       await updateDownloadEvent(downloadEventUri, parseInt(downloadEvent.numberOfRetries.value) + 1, ONGOING);
       await performDownloadTask(remoteObject, downloadEventUri);
-    }
-    catch(error){
+    } catch (error) {
       handleDownloadTaskError(error, remoteObject, downloadEventUri);
     }
   }, waitTime);
 
 }
 
-async function rescheduleTasksOnStart(){
+async function rescheduleTasksOnStart() {
   let remoteObjects = await getRemoteDataObjectByStatus(ONGOING);
-  for(let o of remoteObjects){
+  for (let o of remoteObjects) {
     try {
       await scheduleRetryProcessing(o, o.downloadEventUri.value);
-    }
-    catch(error){
+    } catch (error) {
       //if rescheduling fails, we consider there is something really broken...
       console.log(`Fatal error for ${o.subject.value}`);
       await updateStatus(o.subject.value, FAILURE);
     }
   }
-};
+}
 
-function calcTimeout(x){
+function calcTimeout(x) {
   //expected to be milliseconds
   return Math.round(Math.exp(0.3 * x + 10)); //I dunno I just gave it a shot
 }
@@ -195,83 +194,83 @@ function calcTimeout(x){
  * Throws exception on failed download.
  */
 async function downloadFile(remoteObject, headers, credentialsType) {
-    const url = remoteObject.url.value;
+  const url = remoteObject.url.value;
 
-    const requestBody = { url };
-    if (Object.keys(headers).length > 0) {
-      requestBody.options = { headers };
-    }
+  const requestBody = {url};
+  if (Object.keys(headers).length > 0) {
+    requestBody.options = {headers};
+  }
 
-    if (credentialsType == BASIC_AUTH) {
-      const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
-      const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).toString('base64')
-      requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
-    }
+  if (credentialsType == BASIC_AUTH) {
+    const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
+    const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
+        toString('base64');
+    requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
+  }
 
-    if (credentialsType == OAUTH2) {
-      const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
+  if (credentialsType == OAUTH2) {
+    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
 
-      const body = {
-        'client_id': credentialsInfo.clientId.value,
-        'client_secret': credentialsInfo.clientSecret.value,
-        'resource': credentialsInfo.redirectUri.value,
+    const body = {
+      'client_id': credentialsInfo.clientId.value,
+      'client_secret': credentialsInfo.clientSecret.value,
+      'resource': credentialsInfo.resource.value
+    };
+    const oauthClient = new ClientOAuth2({
+      clientId: credentialsInfo.clientId.value,
+      clientSecret: credentialsInfo.clientSecret.value,
+      accessTokenUri: credentialsInfo.accessTokenUri.value,
+      authorizationGrants: ['credentials'],
+      body: body
+    });
+    const tokenResponse = await oauthClient.credentials.getToken();
+
+    requestBody.options = tokenResponse.sign({
+      method: 'GET',
+      url: requestBody.url
+    });
+  }
+
+  try {
+    let response = await fetch(requestBody.url, requestBody.options);
+    await saveHttpStatusCode(remoteObject.subject.value, response.status);
+    if (response.ok) { // res.status >= 200 && res.status < 300
+      //--- Status: OK
+      //--- create file attributes
+      let extension = getExtensionFrom(response.headers);
+      let bareName = uuid();
+      let physicalFileName = [bareName, extension].join('');
+      let localAddress = path.join(FILE_STORAGE, physicalFileName);
+
+      //--- write the file
+      try {
+        await saveFileToDisk(response, localAddress);
+        return {
+          resource: remoteObject,
+          result: response,
+          cachedFileAddress: localAddress,
+          cachedFileName: physicalFileName,
+          bareName: bareName,
+          extension: extension
+        };
+      } catch (err) {
+        //--- We need to clean up on error during file writing
+        console.log(`${localAddress} failed writing to disk, cleaning up...`);
+        cleanUpFile(localAddress);
+        throw err;
       }
-      const oauthClient = new ClientOAuth2({
-        clientId: credentialsInfo.clientId.value,
-        clientSecret: credentialsInfo.clientSecret.value,
-        accessTokenUri: credentialsInfo.accessTokenUri.value,
-        redirectUri: credentialsInfo.redirectUri.value,
-        authorizationGrants: ['credentials'],
-        body: body
-      });
-      const tokenResponse = await oauthClient.credentials.getToken();
-
-      requestBody.options = tokenResponse.sign({
-        method: 'GET',
-        url: requestBody.url
-      });
+    } else {
+      //--- NO OK
+      throw Error(`Response code http ${response.status}`);
     }
-
-    try {
-      let response = await fetch(requestBody.url, requestBody.options);
-      await saveHttpStatusCode(remoteObject.subject.value, response.status);
-      if (response.ok) { // res.status >= 200 && res.status < 300
-        //--- Status: OK
-        //--- create file attributes
-        let extension = getExtensionFrom(response.headers);
-        let bareName = uuid();
-        let physicalFileName = [bareName, extension].join('');
-        let localAddress = path.join(FILE_STORAGE, physicalFileName);
-
-        //--- write the file
-        try {
-          await saveFileToDisk(response, localAddress);
-          return {
-            resource: remoteObject,
-            result: response,
-            cachedFileAddress: localAddress,
-            cachedFileName: physicalFileName,
-            bareName: bareName,
-            extension: extension
-          };
-        } catch(err) {
-          //--- We need to clean up on error during file writing
-          console.log (`${localAddress} failed writing to disk, cleaning up...`);
-          cleanUpFile(localAddress);
-          throw err;
-        }
-      } else {
-        //--- NO OK
-        throw Error(`Response code http ${response.status}`);
-      }
-    } catch (err) {
-      console.error("Error while downloading a remote resource:");
-      console.error(`  remote resource: ${remoteObject.subject.value}`);
-      console.error(`  remote url: ${url}`);
-      console.error(`  error: ${err}`);
-      await saveCacheError(remoteObject.subject.value, err);
-      throw err;
-    }
+  } catch (err) {
+    console.error('Error while downloading a remote resource:');
+    console.error(`  remote resource: ${remoteObject.subject.value}`);
+    console.error(`  remote url: ${url}`);
+    console.error(`  error: ${err}`);
+    await saveCacheError(remoteObject.subject.value, err);
+    throw err;
+  }
 }
 
 /**
@@ -296,15 +295,14 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
     //create the physical file
     let physicalUri = 'share://' + downloadResult.cachedFileName; //we assume filename here
     let resultPhysicalFile = await createPhysicalFileDataObject(physicalUri,
-                                                                remoteDataObjectQueryResult.subject.value,
-                                                                name,
-                                                                contentType,
-                                                                fileSize,
-                                                                extension,
-                                                                date);
+        remoteDataObjectQueryResult.subject.value,
+        name,
+        contentType,
+        fileSize,
+        extension,
+        date);
     return physicalUri;
-  }
-  catch (err) {
+  } catch (err) {
     console.error('Error while associating a downloaded file to a FileAddress object');
     console.error(err);
     console.error(`  downloaded file: ${downloadResult.cachedFileAddress}`);
@@ -319,8 +317,8 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
  * Is intended to be used for deleting orphant files after a failure.
  * @param {string} path Local path to a file
  */
-function cleanUpFile(path){
-  if(fs.existsSync(path)){
+function cleanUpFile(path) {
+  if (fs.existsSync(path)) {
     fs.unlinkSync(path);
   }
 }
