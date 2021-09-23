@@ -72,12 +72,9 @@ async function getCredentialsTypeForRemoteDataObject(subject) {
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
-    SELECT ?securityConfigurationType WHERE {
-      GRAPH ?g {
-        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
-          dgftSec:targetAuthenticationConfiguration ?configuration .
-        ?configuration dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
-      }
+    SELECT DISTINCT ?securityConfigurationType WHERE {
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
     }
   `;
   await query(q);
@@ -93,13 +90,10 @@ async function getBasicCredentialsForRemoteDataObject(subject) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT DISTINCT ?user ?pass WHERE {
-      GRAPH ?g {
-        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
-          dgftSec:targetAuthenticationConfiguration ?configuration .
-        ?configuration dgftSec:secrets ?secrets .
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:secrets ?secrets .
         ?secrets meb:username ?user ;
           muAccount:password ?pass .
-      }
     }
   `;
   await query(q);
@@ -115,16 +109,13 @@ async function getOauthCredentialsForRemoteDataObject(subject) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT DISTINCT ?clientId ?clientSecret ?accessTokenUri ?resource WHERE {
-      GRAPH ?g {
-        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
-          dgftSec:targetAuthenticationConfiguration ?configuration .
-        ?configuration dgftSec:secrets ?secrets ;
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:secrets ?secrets ;
           dgftSec:securityConfiguration ?securityConfiguration .
         ?secrets oauthSession:clientId ?clientId ;
           oauthSession:clientSecret ?clientSecret .
-        ?securityConfiguration security:token ?accessTokenUri .  
-        OPTIONAL {?securityConfiguration oauthSession:resource ?resource .}.
-      }
+        ?securityConfiguration security:token ?accessTokenUri .
+        OPTIONAL { ?securityConfiguration oauthSession:resource ?resource . }.
     }
   `;
   await query(q);
@@ -369,7 +360,8 @@ async function getRemoteDataObject(uuid) {
 }
 
 async function deleteCredentials(remoteDataObject, credentialsType) {
-
+  // NOTE: we may not assume the securityconfiguration is in the same graph as the remote data object.
+  // It could be an extra safe space, hence the query is split here.
   if (!credentialsType)
     credentialsType = await getCredentialsTypeForRemoteDataObject(remoteDataObject.subject);
 
@@ -388,9 +380,10 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
             muAccount:password ?pass .
         }
       } WHERE {
+
+        ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+
         GRAPH ?g {
-          ?submission nie:hasPart ${sparqlEscapeUri(remoteDataObject.subject.value)} ;
-            dgftSec:targetAuthenticationConfiguration ?configuration .
           ?configuration dgftSec:secrets ?secrets .
           ?secrets meb:username ?user ;
             muAccount:password ?pass .
@@ -412,9 +405,10 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
             oauthSession:clientSecret ?clientSecret .
         }
       } WHERE {
+
+        ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+
         GRAPH ?g {
-          ?submission nie:hasPart ${sparqlEscapeUri(remoteDataObject.subject.value)} ;
-            dgftSec:targetAuthenticationConfiguration ?configuration .
           ?configuration dgftSec:secrets ?secrets .
           ?secrets oauthSession:clientId ?clientId ;
             oauthSession:clientSecret ?clientSecret .
