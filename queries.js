@@ -70,10 +70,12 @@ async function getCredentialsTypeForRemoteDataObject(subject) {
   const q = `
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT ?securityConfigurationType WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+      GRAPH ?g {
+        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
+          dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
       }
     }
@@ -88,10 +90,12 @@ async function getBasicCredentialsForRemoteDataObject(subject) {
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
     PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT DISTINCT ?user ?pass WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+      GRAPH ?g {
+        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
+          dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:secrets ?secrets .
         ?secrets meb:username ?user ;
           muAccount:password ?pass .
@@ -108,10 +112,12 @@ async function getOauthCredentialsForRemoteDataObject(subject) {
     PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
     PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
     PREFIX security: <https://www.w3.org/2019/wot/security#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
-    SELECT DISTINCT ?clientId ?clientSecret ?resource ?accessTokenUri WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+    SELECT DISTINCT ?clientId ?clientSecret ?accessTokenUri ?resource WHERE {
+      GRAPH ?g {
+        ?submission nie:hasPart ${sparqlEscapeUri(subject.value)} ;
+          dgftSec:targetAuthenticationConfiguration ?configuration .
         ?configuration dgftSec:secrets ?secrets ;
           dgftSec:securityConfiguration ?securityConfiguration .
         ?secrets oauthSession:clientId ?clientId ;
@@ -373,16 +379,18 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
       PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
       PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
       PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
+      PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
       DELETE {
-        GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        GRAPH ?g {
           ?configuration dgftSec:secrets ?secrets .
           ?secrets meb:username ?user ;
             muAccount:password ?pass .
         }
       } WHERE {
-        GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-          ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+        GRAPH ?g {
+          ?submission nie:hasPart ${sparqlEscapeUri(remoteDataObject.subject.value)} ;
+            dgftSec:targetAuthenticationConfiguration ?configuration .
           ?configuration dgftSec:secrets ?secrets .
           ?secrets meb:username ?user ;
             muAccount:password ?pass .
@@ -395,16 +403,18 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
       PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
       PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
       PREFIX security: <https://www.w3.org/2019/wot/security#>
+      PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
       DELETE {
-        GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        GRAPH ?g {
           ?configuration dgftSec:secrets ?secrets .
           ?secrets oauthSession:clientId ?clientId ;
             oauthSession:clientSecret ?clientSecret .
         }
       } WHERE {
-        GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
-          ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+        GRAPH ?g {
+          ?submission nie:hasPart ${sparqlEscapeUri(remoteDataObject.subject.value)} ;
+            dgftSec:targetAuthenticationConfiguration ?configuration .
           ?configuration dgftSec:secrets ?secrets .
           ?secrets oauthSession:clientId ?clientId ;
             oauthSession:clientSecret ?clientSecret .
