@@ -1,11 +1,13 @@
 import { uuid, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeInt, sparqlEscapeDate, sparqlEscapeDateTime } from 'mu';
-import { querySudo as query } from '@lblod/mu-auth-sudo';
+import { querySudo as query, updateSudo as update } from '@lblod/mu-auth-sudo';
 
 const DEFAULT_GRAPH = (process.env || {}).DEFAULT_GRAPH || 'http://mu.semte.ch/graphs/public';
 const READY = 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
 const ONGOING = 'http://lblod.data.gift/file-download-statuses/ongoing';
 const SUCCESS = 'http://lblod.data.gift/file-download-statuses/success';
 const FAILURE = 'http://lblod.data.gift/file-download-statuses/failure';
+const BASIC_AUTH = 'https://www.w3.org/2019/wot/security#BasicSecurityScheme';
+const OAUTH2 = 'https://www.w3.org/2019/wot/security#OAuth2SecurityScheme';
 
 /**
  * get remote data objects
@@ -29,14 +31,15 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
     PREFIX    nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX    nuao: <http://www.semanticdesktop.org/ontologies/2010/01/25/nuao#>
 
-    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri WHERE{
+    SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri
+    WHERE {
       GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
         ?subject a nfo:RemoteDataObject .
         ${subjectValues}
         ?subject mu:uuid ?uuid;
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
-         OPTIONAL { ?downloadEventUri nuao:involves ?subject }
+        OPTIONAL { ?downloadEventUri nuao:involves ?subject }
       }
     }
   `;
@@ -45,7 +48,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
   return result.results.bindings || [];
 };
 
-async function getRequestHeadersForRemoteDataObject(subject){
+async function getRequestHeadersForRemoteDataObject(subject) {
   const q = `
     PREFIX http: <http://www.w3.org/2011/http#>
     PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
@@ -63,7 +66,64 @@ async function getRequestHeadersForRemoteDataObject(subject){
   return result.results.bindings || [];
 };
 
-async function updateStatus(uri, newStatusUri){
+async function getCredentialsTypeForRemoteDataObject(subject) {
+  const q = `
+    PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+    PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+    SELECT DISTINCT ?securityConfigurationType WHERE {
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
+    }
+  `;
+  await query(q);
+  const result = await query(q);
+  return result.results.bindings[0] ? result.results.bindings[0].securityConfigurationType.value : null;
+};
+
+async function getBasicCredentialsForRemoteDataObject(subject) {
+  const q = `
+    PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+    PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
+    PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+    SELECT DISTINCT ?user ?pass WHERE {
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:secrets ?secrets .
+        ?secrets meb:username ?user ;
+          muAccount:password ?pass .
+    }
+  `;
+  await query(q);
+  const result = await query(q);
+  return result.results.bindings[0] || null;
+};
+
+async function getOauthCredentialsForRemoteDataObject(subject) {
+  const q = `
+    PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+    PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
+    PREFIX security: <https://www.w3.org/2019/wot/security#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+    SELECT DISTINCT ?clientId ?clientSecret ?accessTokenUri ?resource WHERE {
+        ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
+        ?authenticationConf dgftSec:secrets ?secrets ;
+          dgftSec:securityConfiguration ?securityConfiguration .
+        ?secrets oauthSession:clientId ?clientId ;
+          oauthSession:clientSecret ?clientSecret .
+        ?securityConfiguration security:token ?accessTokenUri .
+        OPTIONAL { ?securityConfiguration oauthSession:resource ?resource . }.
+    }
+  `;
+  await query(q);
+  const result = await query(q);
+  return result.results.bindings[0] || null;
+};
+
+async function updateStatus(uri, newStatusUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
 
@@ -84,11 +144,10 @@ async function updateStatus(uri, newStatusUri){
       }
     }
   `;
-  await query(q);
-  
+  await update(q);
 }
 
-async function createDownloadEvent(remoteDataObjectUri){
+async function createDownloadEvent(remoteDataObjectUri) {
   let sUuid = uuid();
   let subject = `http://lblod.data.gift/download-events/${sUuid}`;
   let created = Date.now();
@@ -115,11 +174,11 @@ async function createDownloadEvent(remoteDataObjectUri){
       }
     }
   `;
-  let result = await query(q);
+  let result = await update(q);
   return subject;
 }
 
-async function getDownloadEvent(subjectUri){
+async function getDownloadEvent(subjectUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
@@ -142,10 +201,10 @@ async function getDownloadEvent(subjectUri){
     }
   `;
   let result = await query(q);
-  return  (result.results.bindings || [])[0];
+  return (result.results.bindings || [])[0];
 }
 
-async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
+async function updateDownloadEvent(uri, numberOfRetries, newStatusUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
@@ -171,10 +230,10 @@ async function updateDownloadEvent(uri, numberOfRetries, newStatusUri){
       }
     }
   `;
-  await query(q);
+  await update(q);
 }
 
-async function updateDownloadEventOnSuccess(uri, fileUri){
+async function updateDownloadEventOnSuccess(uri, fileUri) {
   let q = `
     PREFIX    adms: <http://www.w3.org/ns/adms#>
     PREFIX    task: <http://redpencil.data.gift/vocabularies/tasks/>
@@ -198,11 +257,11 @@ async function updateDownloadEventOnSuccess(uri, fileUri){
       }
     }
   `;
-  await query(q);
+  await update(q);
 }
 
-async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, type, fileSize, extension, created){
-  if(!fileObjectUri.startsWith('share://')) throw Error('File URI should start with share://');
+async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, type, fileSize, extension, created) {
+  if (!fileObjectUri.startsWith('share://')) throw Error('File URI should start with share://');
 
   const uid = uuid();
   let q = `
@@ -228,10 +287,10 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
       }
     }
   `;
-  return await query( q );
+  return await update(q);
 };
 
-async function saveHttpStatusCode(remoteUrl, statusCode){
+async function saveHttpStatusCode(remoteUrl, statusCode) {
   let q = `
     PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
@@ -255,10 +314,10 @@ async function saveHttpStatusCode(remoteUrl, statusCode){
       }
     }
   `;
-  await query(q);
+  await update(q);
 }
 
-async function saveCacheError(remoteUrl, error){
+async function saveCacheError(remoteUrl, error) {
   let q = `
     PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
@@ -283,21 +342,105 @@ async function saveCacheError(remoteUrl, error){
       }
     }
   `;
-  await query(q);
+  await update(q);
 }
 
-export { getRemoteDataObjectByStatus,
-         getRequestHeadersForRemoteDataObject,
-         updateStatus,
-         createDownloadEvent,
-         getDownloadEvent,
-         updateDownloadEvent,
-         createPhysicalFileDataObject,
-         updateDownloadEventOnSuccess,
-         saveHttpStatusCode,
-         saveCacheError,
-         READY,
-         ONGOING,
-         SUCCESS,
-         FAILURE
-       }
+async function getRemoteDataObject(uuid) {
+  let q = `
+    PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
+
+    SELECT DISTINCT ?s WHERE {
+      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+        ?s mu:uuid ${sparqlEscapeString(uuid)}.
+      }
+    }
+  `;
+  let result = await query(q);
+  return result.results.bindings ? result.results.bindings[0].s.value : null;
+}
+
+async function deleteCredentials(remoteDataObject, credentialsType) {
+  // NOTE: we may not assume the securityconfiguration is in the same graph as the remote data object.
+  // It could be an extra safe space, hence the query is split here.
+  if (!credentialsType)
+    credentialsType = await getCredentialsTypeForRemoteDataObject(remoteDataObject.subject);
+
+  switch (credentialsType) {
+    case BASIC_AUTH:
+      await update(`
+      PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+      PREFIX meb: <http://rdf.myexperiment.org/ontologies/base/>
+      PREFIX muAccount: <http://mu.semte.ch/vocabularies/account/>
+      PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+      DELETE {
+        GRAPH ?g {
+          ?configuration dgftSec:secrets ?secrets .
+          ?secrets meb:username ?user ;
+            muAccount:password ?pass .
+        }
+      } WHERE {
+
+        ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+
+        GRAPH ?g {
+          ?configuration dgftSec:secrets ?secrets .
+          ?secrets meb:username ?user ;
+            muAccount:password ?pass .
+        }
+      }
+    `);
+      break;
+    case OAUTH2:
+      await update(`
+      PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
+      PREFIX oauthSession: <http://kanselarij.vo.data.gift/vocabularies/oauth-2.0-session/>
+      PREFIX security: <https://www.w3.org/2019/wot/security#>
+      PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+      DELETE {
+        GRAPH ?g {
+          ?configuration dgftSec:secrets ?secrets .
+          ?secrets oauthSession:clientId ?clientId ;
+            oauthSession:clientSecret ?clientSecret .
+        }
+      } WHERE {
+
+        ${sparqlEscapeUri(remoteDataObject.subject.value)} dgftSec:targetAuthenticationConfiguration ?configuration .
+
+        GRAPH ?g {
+          ?configuration dgftSec:secrets ?secrets .
+          ?secrets oauthSession:clientId ?clientId ;
+            oauthSession:clientSecret ?clientSecret .
+        }
+      }
+    `);
+      break;
+    default:
+      return false;
+  }
+}
+
+export {
+  getRemoteDataObjectByStatus,
+  getRequestHeadersForRemoteDataObject,
+  getCredentialsTypeForRemoteDataObject,
+  getBasicCredentialsForRemoteDataObject,
+  getOauthCredentialsForRemoteDataObject,
+  deleteCredentials,
+  updateStatus,
+  createDownloadEvent,
+  getDownloadEvent,
+  updateDownloadEvent,
+  createPhysicalFileDataObject,
+  updateDownloadEventOnSuccess,
+  saveHttpStatusCode,
+  saveCacheError,
+  getRemoteDataObject,
+  READY,
+  ONGOING,
+  SUCCESS,
+  FAILURE,
+  BASIC_AUTH,
+  OAUTH2
+};
