@@ -38,6 +38,7 @@ const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
+const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (proces.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
 
 /***
  * Workaround for dealing with broken certificates configuration.
@@ -128,7 +129,9 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
-  await deleteCredentials(remoteObject, credentialsType);
+  if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+    await deleteCredentials(remoteObject, credentialsType);
+  }
 
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
 
@@ -152,7 +155,10 @@ async function scheduleRetryProcessing(remoteObject, downloadEventUri) {
     await updateStatus(remoteObject.subject.value, FAILURE);
     await updateStatus(downloadEventUri, FAILURE);
     console.log(`Stopping retries for ${remoteObject.subject.value} and task ${downloadEventUri})`);
-    await deleteCredentials(remoteObject);
+
+    if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+      await deleteCredentials(remoteObject);
+    }
     return;
   }
 

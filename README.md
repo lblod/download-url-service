@@ -57,6 +57,7 @@ The following environment variales can be configured:
 * `CACHING_MAX_RETRIES`: number of attempts to download a file before the download event transitions to a failure state
 * `FILE_STORAGE`: absolute path inside the container in which the downloaded files must be stored
 * `PING_DB_INTERVAL`: interval in seconds to ping the database on startup of the service
+* `REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD`: Removes secrets after reaching final state (failed or success), defaults to `true`
 
 ### Model
 The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/file-download-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
