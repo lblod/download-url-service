@@ -394,7 +394,7 @@ async function deleteCredentials(remoteDataObject, credentialsType) {
     case OAUTH2:
       await update(`
       PREFIX dgftSec: <http://lblod.data.gift/vocabularies/security/>
-      PREFIX oauthSession: <http://kanselarij\.vo\.data\.gift/vocabularies/oauth-2\.0-session/>
+      PREFIX oauthSession: <http://kanselarij.vo.data.gift/vocabularies/oauth-2.0-session/>
       PREFIX security: <https://www.w3.org/2019/wot/security#>
       PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
