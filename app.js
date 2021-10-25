@@ -33,12 +33,14 @@ import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
+import { ProcessingQueue } from './processing-queue';
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
+const queue = new ProcessingQueue();
 
 
 /***
@@ -54,32 +56,33 @@ https.globalAgent.options.ca = rootCas;
 
 waitForDatabase(rescheduleTasksOnStart);
 
+
 app.use(bodyParser.json({
-  type: function(req) {
+  type: function (req) {
     return /^application\/json/.test(req.get('content-type'));
   }
 }));
 
-app.get('/', function(req, res) {
+app.get('/', function (req, res) {
   res.send(`Welcome to the dowload url service.`);
 });
 
-app.post('/process-remote-data-objects', async function(req, res) {
+app.post('/process-remote-data-objects', async function (req, res) {
   const delta = req.body;
   const remoteDataObjectUris = getRemoteDataObjectsFromDelta(delta);
   console.log(`Found ${remoteDataObjectUris.length} new remote data objects in the delta message`);
   processDownloads(remoteDataObjectUris);
-  res.send({message: `Started.`});
+  res.send({ message: `Started.` });
 });
 
 // Endpoint to ease development
-app.post('/process-remote-data-object/:uuid', async function(req, res, next) {
+app.post('/process-remote-data-object/:uuid', async function (req, res, next) {
   const uuid = req.params.uuid;
   try {
     const remoteDataObjectUri = await getRemoteDataObject(uuid);
     console.log(`Found new remote data object ${remoteDataObjectUri} with uuid ${uuid}`);
     processDownloads([remoteDataObjectUri]);
-    res.send({message: `Started.`});
+    res.send({ message: `Started.` });
   } catch (e) {
     console.log(`Something went wrong while retrieving remote data object with id ${uuid}`);
     console.log(e);
@@ -92,9 +95,9 @@ function getRemoteDataObjectsFromDelta(delta) {
   const inserts = flatten(delta.map(changeSet => changeSet.inserts));
   const remoteDataObjectUris = inserts.filter(triple => {
     return triple.predicate.type == 'uri'
-        && triple.predicate.value == 'http://www.w3.org/ns/adms#status'
-        && triple.object.type == 'uri'
-        && triple.object.value == 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
+      && triple.predicate.value == 'http://www.w3.org/ns/adms#status'
+      && triple.object.type == 'uri'
+      && triple.object.value == 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
   }).map(triple => triple.subject.value);
   return uniq(remoteDataObjectUris);
 }
@@ -104,18 +107,16 @@ async function processDownloads(remoteDataObjectUris) {
 
   //create associated download events and lock in DB.
   for (let o of remoteObjects) {
-    let dlEventUri = await createDownloadEvent(o.subject.value);
-    await updateStatus(o.subject.value, ONGOING);
-    o.dlEventUri = dlEventUri;
-  }
-
-  for (let o of remoteObjects) {
-    try {
+    queue.addJob(async () => {
+      let dlEventUri = await createDownloadEvent(o.subject.value);
+      await updateStatus(o.subject.value, ONGOING);
+      o.dlEventUri = dlEventUri;
       await performDownloadTask(o, o.dlEventUri);
-    } catch (error) {
-      handleDownloadTaskError(error, o, o.dlEventUri);
-    }
+    }, async (error) => {
+      await handleDownloadTaskError(error, o, o.dlEventUri);
+    });
   }
+  queue.run();
 }
 
 async function performDownloadTask(remoteObject, downloadEventUri) {
@@ -130,7 +131,7 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
-  if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+  if (REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD) {
     await deleteCredentials(remoteObject, credentialsType);
   }
 
@@ -151,13 +152,13 @@ async function handleDownloadTaskError(error, remoteObject, downloadEventUri) {
 async function scheduleRetryProcessing(remoteObject, downloadEventUri) {
   let downloadEvent = await getDownloadEvent(downloadEventUri);
   console.log(
-      `Download event ${downloadEventUri} retried ${downloadEvent.numberOfRetries.value}/${CACHING_MAX_RETRIES} already`);
+    `Download event ${downloadEventUri} retried ${downloadEvent.numberOfRetries.value}/${CACHING_MAX_RETRIES} already`);
   if (downloadEvent.numberOfRetries.value >= CACHING_MAX_RETRIES) {
     await updateStatus(remoteObject.subject.value, FAILURE);
     await updateStatus(downloadEventUri, FAILURE);
     console.log(`Stopping retries for ${remoteObject.subject.value} and task ${downloadEventUri})`);
 
-    if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+    if (REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD) {
       await deleteCredentials(remoteObject);
     }
     return;
@@ -165,7 +166,7 @@ async function scheduleRetryProcessing(remoteObject, downloadEventUri) {
 
   let waitTime = calcTimeout(parseInt(downloadEvent.numberOfRetries.value));
   console.log(`Expecting next retry for ${remoteObject.subject.value} and task ${downloadEventUri} in about ${waitTime /
-  1000} seconds`);
+    1000} seconds`);
   setTimeout(async () => {
     try {
       console.log(`Retry for ${remoteObject.subject.value} and task ${downloadEventUri}`);
@@ -203,15 +204,15 @@ function calcTimeout(x) {
 async function downloadFile(remoteObject, headers, credentialsType) {
   const url = remoteObject.url.value;
 
-  const requestBody = {url};
+  const requestBody = { url };
   if (Object.keys(headers).length > 0) {
-    requestBody.options = {headers};
+    requestBody.options = { headers };
   }
 
   if (credentialsType == BASIC_AUTH) {
     const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
     const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
-        toString('base64');
+      toString('base64');
     requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
   }
 
@@ -304,12 +305,12 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
     //create the physical file
     let physicalUri = 'share://' + downloadResult.cachedFileName; //we assume filename here
     let resultPhysicalFile = await createPhysicalFileDataObject(physicalUri,
-        remoteDataObjectQueryResult.subject.value,
-        name,
-        contentType,
-        fileSize,
-        extension,
-        date);
+      remoteDataObjectQueryResult.subject.value,
+      name,
+      contentType,
+      fileSize,
+      extension,
+      date);
     return physicalUri;
   } catch (err) {
     console.error('Error while associating a downloaded file to a FileAddress object');
