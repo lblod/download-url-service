@@ -116,7 +116,6 @@ async function processDownloads(remoteDataObjectUris) {
       await handleDownloadTaskError(error, o, o.dlEventUri);
     });
   }
-  queue.run();
 }
 
 async function performDownloadTask(remoteObject, downloadEventUri) {
