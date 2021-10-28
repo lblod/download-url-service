@@ -41,6 +41,7 @@ const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
 const queue = new ProcessingQueue();
+console.log = function () { };
 
 
 /***
@@ -71,7 +72,9 @@ app.post('/process-remote-data-objects', async function (req, res) {
   const delta = req.body;
   const remoteDataObjectUris = getRemoteDataObjectsFromDelta(delta);
   console.log(`Found ${remoteDataObjectUris.length} new remote data objects in the delta message`);
-  processDownloads(remoteDataObjectUris);
+  queue.addJob(async () => processDownloads(remoteDataObjectUris), async (error) => {
+    console.error(`Something went wrong.`, error);
+  });
   res.send({ message: `Started.` });
 });
 
@@ -107,14 +110,15 @@ async function processDownloads(remoteDataObjectUris) {
 
   //create associated download events and lock in DB.
   for (let o of remoteObjects) {
-    queue.addJob(async () => {
+    try {
       let dlEventUri = await createDownloadEvent(o.subject.value);
       await updateStatus(o.subject.value, ONGOING);
       o.dlEventUri = dlEventUri;
       await performDownloadTask(o, o.dlEventUri);
-    }, async (error) => {
+    } catch (error) {
       await handleDownloadTaskError(error, o, o.dlEventUri);
-    });
+    }
+
   }
 }
 
@@ -278,7 +282,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     console.error(`  remote url: ${url}`);
     console.error(`  error: ${err}`);
     await saveCacheError(remoteObject.subject.value, err);
-    throw err;
+    throw Error("failed to download file");
   }
 }
 
