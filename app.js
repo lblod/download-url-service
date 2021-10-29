@@ -41,8 +41,6 @@ const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
 const queue = new ProcessingQueue();
-console.log = function () { };
-
 
 /***
  * Workaround for dealing with broken certificates configuration.
