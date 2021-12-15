@@ -385,7 +385,7 @@ async function saveFileToDisk(res, address) {
 async function getRealExtension(localAddress) {
   const FileType = require('file-type');
   const fileType = await FileType.fromFile(localAddress)
-  if (false) {
+  if (fileType) {
     // File type can be deduced from magic numbers
     return `.${fileType.ext}`;
   } else {
@@ -413,8 +413,8 @@ function getHtmlDoctypeFromFile(localAddress) {
 
   if (document) {
     return document.find(element => {
-      const isDoctype = element.name.toLowerCase() == '!doctype';
-      const isHtml = element.nodeValue.includes('html');
+      const isDoctype = element.name ? element.name.toLowerCase() == '!doctype' : false;
+      const isHtml = element.nodeValue ? element.nodeValue.includes('html') : false;
       return isDoctype && isHtml;
     });
   }
