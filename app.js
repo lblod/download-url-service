@@ -39,7 +39,7 @@ const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
 const DEFAULT_CONTENT_TYPE = 'text/plain';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
-
+const GUESS_FILE_TYPE_BINARY_FILES = (process.env.GUESS_FILE_TYPE_BINARY_FILES || 'true') == 'true';
 
 /***
  * Workaround for dealing with broken certificates configuration.
@@ -128,6 +128,7 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
+
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
   if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
@@ -246,7 +247,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-      let extension = getExtensionFrom(response.headers);
+      let extension = await getExtensionFrom(response.headers);
       let bareName = uuid();
       let physicalFileName = [bareName, extension].join('');
       let localAddress = path.join(FILE_STORAGE, physicalFileName);
@@ -254,6 +255,16 @@ async function downloadFile(remoteObject, headers, credentialsType) {
       //--- write the file
       try {
         await saveFileToDisk(response, localAddress);
+
+        const contentType = response.headers.get('content-type');
+
+        if (GUESS_FILE_TYPE_BINARY_FILES && contentType == 'application/octet-stream') {
+          const newExtension = await getRealExtension(localAddress);
+          if (newExtension) {
+            localAddress = await updateFileExtension(localAddress, newExtension);
+          }
+        }
+
         return {
           resource: remoteObject,
           result: response,
@@ -346,7 +357,7 @@ function getContentTypeFrom(headers) {
  *
  * @param {array} headers HTML response header
  */
-function getExtensionFrom(headers) {
+async function getExtensionFrom(headers) {
   const contentType = headers.get('content-type');
   return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
 }
@@ -364,4 +375,61 @@ async function saveFileToDisk(res, address) {
     writeStream.on('close', () => resolve());
     writeStream.on('error', reject);
   });
+}
+
+/**
+ * Try deducing file extension using maging numbers and parsing
+ *
+ * @param address Location of the saved file
+ */
+async function getRealExtension(localAddress) {
+  const FileType = require('file-type');
+  const fileType = await FileType.fromFile(localAddress)
+  if (false) {
+    // File type can be deduced from magic numbers
+    return `.${fileType.ext}`;
+  } else {
+    // File could be a text file, checking for HTML
+    const doctype = getHtmlDoctypeFromFile(localAddress);
+    if (doctype) {
+      return `.html`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Checks if a document has an html doctype
+ *
+ * @param document The document to parse
+ */
+function getHtmlDoctypeFromFile(localAddress) {
+  // In HTML, the doctype is mandatory. Other tags such as <html>, <head>, ... can
+  // be omitted in certain circomstances, making it hard to use to determine if a file's
+  // content is HTML. See also https://html.spec.whatwg.org/dev/syntax.html#syntax
+  const htmlparser2 = require("htmlparser2");
+  const content = fs.readFileSync(localAddress, 'utf8');
+  const document = htmlparser2.parseDOM(content);
+
+  if (document) {
+    return document.find(element => {
+      const isDoctype = element.name.toLowerCase() == '!doctype';
+      const isHtml = element.nodeValue.includes('html');
+      return isDoctype && isHtml;
+    });
+  }
+  return null;
+}
+
+/**
+ * Rename file, async way
+ *
+ * @param address Location of the saved file
+ * @param extension The new extension to save the file with
+ */
+async function updateFileExtension(localAddress, extension) {
+  const basename = path.basename(localAddress, path.extname(localAddress));
+  const newLocalAddress = path.join(path.dirname(localAddress), basename + extension);
+  await fs.rename(localAddress, newLocalAddress);
+  return newLocalAddress;
 }
