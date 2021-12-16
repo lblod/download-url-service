@@ -262,7 +262,9 @@ async function downloadFile(remoteObject, headers, credentialsType) {
         if (GUESS_FILE_TYPE_BINARY_FILES && contentType == 'application/octet-stream') {
           const newExtension = await getRealExtension(localAddress);
           if (newExtension) {
-            localAddress = await updateFileExtension(localAddress, newExtension);
+            const updateResult = await updateFileExtension(localAddress, newExtension);
+            localAddress = updateResult.localAddress;
+            physicalFileName = updateResult.physicalFileName;
           }
         }
 
@@ -315,7 +317,8 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
   try {
     //create the physical file
     let physicalUri = 'share://' + downloadResult.cachedFileName; //we assume filename here
-    let resultPhysicalFile = await createPhysicalFileDataObject(physicalUri,
+    let resultPhysicalFile = await createPhysicalFileDataObject(
+        physicalUri,
         remoteDataObjectQueryResult.subject.value,
         name,
         contentType,
@@ -429,7 +432,11 @@ function getHtmlDoctypeFromFile(localAddress) {
  */
 async function updateFileExtension(localAddress, extension) {
   const basename = path.basename(localAddress, path.extname(localAddress));
-  const newLocalAddress = path.join(path.dirname(localAddress), basename + extension);
+  const physicalFileName = basename + extension;
+  const newLocalAddress = path.join(path.dirname(localAddress), physicalFileName);
   await fs.move(localAddress, newLocalAddress);
-  return newLocalAddress;
+  return {
+    localAddress: newLocalAddress,
+    physicalFileName: physicalFileName
+  };
 }
