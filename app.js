@@ -33,6 +33,7 @@ import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
+import FileType from 'file-type';
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
@@ -383,7 +384,6 @@ async function saveFileToDisk(res, address) {
  * @param address Location of the saved file
  */
 async function getRealExtension(localAddress) {
-  const FileType = require('file-type');
   const fileType = await FileType.fromFile(localAddress)
   if (fileType) {
     // File type can be deduced from magic numbers
@@ -430,6 +430,6 @@ function getHtmlDoctypeFromFile(localAddress) {
 async function updateFileExtension(localAddress, extension) {
   const basename = path.basename(localAddress, path.extname(localAddress));
   const newLocalAddress = path.join(path.dirname(localAddress), basename + extension);
-  await fs.rename(localAddress, newLocalAddress);
+  await fs.move(localAddress, newLocalAddress);
   return newLocalAddress;
 }
