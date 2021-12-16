@@ -248,7 +248,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-      let extension = await getExtensionFrom(response.headers);
+      let extension = getExtensionFrom(response.headers);
       let bareName = uuid();
       let physicalFileName = [bareName, extension].join('');
       let localAddress = path.join(FILE_STORAGE, physicalFileName);
@@ -361,7 +361,7 @@ function getContentTypeFrom(headers) {
  *
  * @param {array} headers HTML response header
  */
-async function getExtensionFrom(headers) {
+function getExtensionFrom(headers) {
   const contentType = headers.get('content-type');
   return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
 }
@@ -384,7 +384,7 @@ async function saveFileToDisk(res, address) {
 /**
  * Try deducing file extension using maging numbers and parsing
  *
- * @param address Location of the saved file
+ * @param localAddress Location of the saved file
  */
 async function getRealExtension(localAddress) {
   const fileType = await FileType.fromFile(localAddress)
@@ -425,7 +425,7 @@ function getHtmlDoctypeFromFile(localAddress) {
 }
 
 /**
- * Rename file, async way
+ * Rename file by changing its extension, async way
  *
  * @param address Location of the saved file
  * @param extension The new extension to save the file with
