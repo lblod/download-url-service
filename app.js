@@ -34,13 +34,12 @@ import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
 import FileType from 'file-type';
+import { isText } from 'istextorbinary'
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
-const DEFAULT_EXTENSION = '.html';
-const DEFAULT_CONTENT_TYPE = 'text/html';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
-const GUESS_FILE_TYPE_BINARY_FILES = (process.env.GUESS_FILE_TYPE_BINARY_FILES || 'true') == 'true';
+const DEFAULT_TEXT_FORMAT = process.env.DEFAULT_TEXT_FORMAT || '.txt';
 
 /***
  * Workaround for dealing with broken certificates configuration.
@@ -342,7 +341,7 @@ function cleanUpFile(path) {
  * @param {string} extension The extension of the file
  */
 function getContentTypeFromExtension(extension) {
-  return mime.lookup(extension) || DEFAULT_CONTENT_TYPE;
+  return mime.lookup(extension);
 }
 
 /**
@@ -352,7 +351,7 @@ function getContentTypeFromExtension(extension) {
  */
 function getExtensionFrom(headers) {
   const contentType = headers.get('content-type');
-  return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
+  return `.${mime.extension(contentType)}`;
 }
 
 /**
@@ -370,17 +369,23 @@ async function saveFileToDisk(res, address) {
   });
 }
 
-
+/**
+ * Guesses the real extension of a file if needed
+ *
+ * @param downloadResult Result of the download
+ */
 async function ensureFileTypeIsCorrect(downloadResult) {
   const contentType = downloadResult.result.headers.get('content-type');
 
-  if (GUESS_FILE_TYPE_BINARY_FILES && contentType == 'application/octet-stream') {
-    const newExtension = await getRealExtension(downloadResult.cachedFileAddress);
-    if (newExtension) {
-      const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, newExtension);
+  // If content type in binary or if we didn't find an extension yet, try guessing
+  if (contentType == 'application/octet-stream' || !downloadResult.extension) {
+    const guessedExtension = await guessRealExtension(downloadResult.cachedFileAddress);
+
+    if (guessedExtension && (guessedExtension != downloadResult.extension)) {
+      const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, guessedExtension);
       downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
       downloadResult.cachedFileName = updatedResult.cachedFileName;
-      downloadResult.extension = newExtension;
+      downloadResult.extension = guessedExtension;
     }
   }
 
@@ -388,37 +393,45 @@ async function ensureFileTypeIsCorrect(downloadResult) {
 }
 
 /**
- * Try deducing file extension using maging numbers and parsing
+ * Try deducing file extension using magic numbers and parsing
  *
- * @param localAddress Location of the saved file
+ * @param fileAddress Location of the saved file
  */
-async function getRealExtension(localAddress) {
-  const fileType = await FileType.fromFile(localAddress)
+async function guessRealExtension(fileAddress) {
+  const fileType = await FileType.fromFile(fileAddress)
   if (fileType) {
     // File type can be deduced from magic numbers
     return `.${fileType.ext}`;
   } else {
-    // File could be a text file, checking for HTML
-    const doctype = getHtmlDoctypeFromFile(localAddress);
-    if (doctype) {
-      return `.html`;
+    const bufferedFile = fs.readFileSync(fileAddress, 'utf8');
+    const isTextFile = isText(null, bufferedFile);
+
+    if (isTextFile) {
+      // File is a text file, guessing if it's html, else default text format
+      const doctype = getHtmlDoctypeFromBuffer(bufferedFile);
+      if (doctype) {
+        return '.html';
+      } else {
+        return DEFAULT_TEXT_FORMAT;
+      }
     }
   }
-  return null;
+
+  // Default to .bin
+  return '.bin';
 }
 
 /**
  * Checks if a document has an html doctype
  *
- * @param document The document to parse
+ * @param {Buffer} bufferedFile The buffered file to parse
  */
-function getHtmlDoctypeFromFile(localAddress) {
+function getHtmlDoctypeFromBuffer(bufferedFile) {
   // In HTML, the doctype is mandatory. Other tags such as <html>, <head>, ... can
   // be omitted in certain circomstances, making it hard to use to determine if a file's
   // content is HTML. See also https://html.spec.whatwg.org/dev/syntax.html#syntax
   const htmlparser2 = require("htmlparser2");
-  const content = fs.readFileSync(localAddress, 'utf8');
-  const document = htmlparser2.parseDOM(content);
+  const document = htmlparser2.parseDOM(bufferedFile);
 
   if (document) {
     return document.find(element => {
@@ -433,16 +446,16 @@ function getHtmlDoctypeFromFile(localAddress) {
 /**
  * Rename file by changing its extension, async way
  *
- * @param address Location of the saved file
+ * @param fileAddress Location of the saved file
  * @param extension The new extension to save the file with
  */
-async function updateFileExtension(cachedFileAddress, extension) {
-  const basename = path.basename(cachedFileAddress, path.extname(cachedFileAddress));
-  const cachedFileName = basename + extension;
-  const newCachedFileAddress = path.join(path.dirname(cachedFileAddress), cachedFileName);
-  await fs.move(cachedFileAddress, newCachedFileAddress);
+async function updateFileExtension(fileAddress, extension) {
+  const basename = path.basename(fileAddress, path.extname(fileAddress));
+  const fileName = basename + extension;
+  const newFileAddress = path.join(path.dirname(fileAddress), fileName);
+  await fs.move(fileAddress, newFileAddress);
   return {
-    cachedFileAddress: newCachedFileAddress,
-    cachedFileName: cachedFileName
+    cachedFileAddress: newFileAddress,
+    cachedFileName: fileName
   };
 }
