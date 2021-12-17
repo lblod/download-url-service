@@ -130,6 +130,8 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
 
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
 
+  downloadResult = await ensureFileTypeIsCorrect(downloadResult);
+
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
   if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
@@ -256,19 +258,6 @@ async function downloadFile(remoteObject, headers, credentialsType) {
       //--- write the file
       try {
         await saveFileToDisk(response, localAddress);
-
-        const contentType = response.headers.get('content-type');
-
-        if (GUESS_FILE_TYPE_BINARY_FILES && contentType == 'application/octet-stream') {
-          const newExtension = await getRealExtension(localAddress);
-          if (newExtension) {
-            const updateResult = await updateFileExtension(localAddress, newExtension);
-            localAddress = updateResult.localAddress;
-            physicalFileName = updateResult.physicalFileName;
-            extension = newExtension;
-          }
-        }
-
         return {
           resource: remoteObject,
           result: response,
@@ -381,6 +370,23 @@ async function saveFileToDisk(res, address) {
   });
 }
 
+
+async function ensureFileTypeIsCorrect(downloadResult) {
+  const contentType = downloadResult.result.headers.get('content-type');
+
+  if (GUESS_FILE_TYPE_BINARY_FILES && contentType == 'application/octet-stream') {
+    const newExtension = await getRealExtension(downloadResult.cachedFileAddress);
+    if (newExtension) {
+      const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, newExtension);
+      downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
+      downloadResult.cachedFileName = updatedResult.cachedFileName;
+      downloadResult.extension = newExtension;
+    }
+  }
+
+  return downloadResult;
+}
+
 /**
  * Try deducing file extension using maging numbers and parsing
  *
@@ -430,13 +436,13 @@ function getHtmlDoctypeFromFile(localAddress) {
  * @param address Location of the saved file
  * @param extension The new extension to save the file with
  */
-async function updateFileExtension(localAddress, extension) {
-  const basename = path.basename(localAddress, path.extname(localAddress));
-  const physicalFileName = basename + extension;
-  const newLocalAddress = path.join(path.dirname(localAddress), physicalFileName);
-  await fs.move(localAddress, newLocalAddress);
+async function updateFileExtension(cachedFileAddress, extension) {
+  const basename = path.basename(cachedFileAddress, path.extname(cachedFileAddress));
+  const cachedFileName = basename + extension;
+  const newCachedFileAddress = path.join(path.dirname(cachedFileAddress), cachedFileName);
+  await fs.move(cachedFileAddress, newCachedFileAddress);
   return {
-    localAddress: newLocalAddress,
-    physicalFileName: physicalFileName
+    cachedFileAddress: newCachedFileAddress,
+    cachedFileName: cachedFileName
   };
 }
