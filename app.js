@@ -130,8 +130,7 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
   let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
-
-  downloadResult = await ensureFileTypeIsCorrect(downloadResult);
+  downloadResult = await updateFileType(downloadResult);
 
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
@@ -251,7 +250,9 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-      let extension = getExtensionFrom(response.headers);
+
+      // Saving file as tmp, looking for its type later on
+      let extension = '.tmp';
       let bareName = uuid();
       let physicalFileName = [bareName, extension].join('');
       let localAddress = path.join(FILE_STORAGE, physicalFileName);
@@ -347,16 +348,6 @@ function getContentTypeFromExtension(extension) {
 }
 
 /**
- * Parses response headers to get the file extension
- *
- * @param {array} headers HTML response header
- */
-function getExtensionFrom(headers) {
-  const contentType = headers.get('content-type');
-  return `.${mime.extension(contentType)}`;
-}
-
-/**
  * Save file, async way
  *
  * @param res Response of the fetch to download the file
@@ -372,15 +363,16 @@ async function saveFileToDisk(res, address) {
 }
 
 /**
- * Guesses the real extension of a file if needed
+ * Updates the extension of a file, either by guessing it or by looking at the content type
  *
  * @param downloadResult Result of the download
  */
-async function ensureFileTypeIsCorrect(downloadResult) {
+async function updateFileType(downloadResult) {
   const contentType = downloadResult.result.headers.get('content-type');
+  const extension = mime.extension(contentType);
 
-  // If content type in binary or if we didn't find an extension yet, try guessing
-  if (contentType == 'application/octet-stream' || !downloadResult.extension) {
+  if (contentType == 'application/octet-stream' || !extension) {
+    // If content type in binary or if we didn't find an extension yet, try guessing
     const guessedExtension = await guessRealExtension(downloadResult.cachedFileAddress);
 
     if (guessedExtension && (guessedExtension != downloadResult.extension)) {
@@ -389,6 +381,13 @@ async function ensureFileTypeIsCorrect(downloadResult) {
       downloadResult.cachedFileName = updatedResult.cachedFileName;
       downloadResult.extension = guessedExtension;
     }
+  } else if (extension) {
+    // Weird binary case discarded, we can trust the content-type and deduce the extension from it
+    const formattedExtension = `.${extension}`;
+    const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, formattedExtension);
+    downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
+    downloadResult.cachedFileName = updatedResult.cachedFileName;
+    downloadResult.extension = formattedExtension;
   }
 
   return downloadResult;
