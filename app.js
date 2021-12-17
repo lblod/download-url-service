@@ -36,6 +36,8 @@ import ClientOAuth2 from 'client-oauth2';
 import FileType from 'file-type';
 import { isText } from 'istextorbinary'
 
+const htmlparser2 = require("htmlparser2");
+
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
@@ -427,20 +429,25 @@ async function guessRealExtension(fileAddress) {
  * @param {Buffer} bufferedFile The buffered file to parse
  */
 function getHtmlDoctypeFromBuffer(bufferedFile) {
-  // In HTML, the doctype is mandatory. Other tags such as <html>, <head>, ... can
-  // be omitted in certain circomstances, making it hard to use to determine if a file's
-  // content is HTML. See also https://html.spec.whatwg.org/dev/syntax.html#syntax
-  const htmlparser2 = require("htmlparser2");
-  const document = htmlparser2.parseDOM(bufferedFile);
-
-  if (document) {
-    return document.find(element => {
-      const isDoctype = element.name ? element.name.toLowerCase() == '!doctype' : false;
-      const isHtml = element.nodeValue ? element.nodeValue.includes('html') : false;
-      return isDoctype && isHtml;
+  // Checking if we can find a closing tag. If yes, assuming HTML
+  // Can bring false positives (XML files for example would become HTML)
+  try {
+    let hasClosingTag = false;
+    const parser = new htmlparser2.Parser({
+        onclosetag(tagname) {
+          hasClosingTag = true;
+        }
     });
+
+    parser.write(bufferedFile);
+    parser.end();
+
+    return hasClosingTag;
+  } catch (err) {
+    console.error('An error occured while trying to parse html');
+    console.error(err);
+    return false;
   }
-  return null;
 }
 
 /**
