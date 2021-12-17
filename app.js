@@ -38,7 +38,7 @@ import FileType from 'file-type';
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
 const DEFAULT_EXTENSION = '.html';
-const DEFAULT_CONTENT_TYPE = 'text/plain';
+const DEFAULT_CONTENT_TYPE = 'text/html';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
 const GUESS_FILE_TYPE_BINARY_FILES = (process.env.GUESS_FILE_TYPE_BINARY_FILES || 'true') == 'true';
 
@@ -265,6 +265,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
             const updateResult = await updateFileExtension(localAddress, newExtension);
             localAddress = updateResult.localAddress;
             physicalFileName = updateResult.physicalFileName;
+            extension = newExtension;
           }
         }
 
@@ -310,9 +311,8 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
   const stats = fs.statSync(downloadResult.cachedFileAddress);
   const fileSize = stats.size;
 
-  //--- read data from HTTP response headers
-  const headers = downloadResult.result.headers;
-  const contentType = getContentTypeFrom(headers);
+  //--- read data from the extension
+  const contentType = getContentTypeFromExtension(extension);
 
   try {
     //create the physical file
@@ -348,12 +348,12 @@ function cleanUpFile(path) {
 }
 
 /**
- * Parses response headers to get the file content-type
+ * Parses extension to get the file content-type
  *
- * @param {array} headers HTML response header
+ * @param {string} extension The extension of the file
  */
-function getContentTypeFrom(headers) {
-  return headers['content-type'] || DEFAULT_CONTENT_TYPE;
+function getContentTypeFromExtension(extension) {
+  return mime.lookup(extension) || DEFAULT_CONTENT_TYPE;
 }
 
 /**
