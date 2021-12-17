@@ -129,9 +129,11 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
 
   const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
-  let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
-  downloadResult = await updateFileType(downloadResult);
-
+  // Downloading the file as a temporary file
+  let tmpDownloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType, '.tmp');
+  // Update its type, extention, path by its content type or by guessing it
+  let downloadResult = await updateFileType(tmpDownloadResult);
+  // Store the final file in the store
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
   if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
@@ -204,7 +206,7 @@ function calcTimeout(x) {
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile(remoteObject, headers, credentialsType) {
+async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
   const url = remoteObject.url.value;
 
   const requestBody = {url};
@@ -250,9 +252,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-
-      // Saving file as tmp, looking for its type later on
-      let extension = '.tmp';
+      let extension = fileExtension ? fileExtension : getExtensionFrom(response.headers);
       let bareName = uuid();
       let physicalFileName = [bareName, extension].join('');
       let localAddress = path.join(FILE_STORAGE, physicalFileName);
@@ -345,6 +345,16 @@ function cleanUpFile(path) {
  */
 function getContentTypeFromExtension(extension) {
   return mime.lookup(extension);
+}
+
+/**
+ * Parses response headers to get the file extension
+ *
+ * @param {array} headers HTML response header
+ */
+function getExtensionFrom(headers) {
+  const contentType = headers.get('content-type');
+  return `.${mime.extension(contentType)}`;
 }
 
 /**
