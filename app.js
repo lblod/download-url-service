@@ -33,13 +33,15 @@ import RootCas from 'ssl-root-cas/latest';
 import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
+import FileType from 'file-type';
+import { isText } from 'istextorbinary'
+
+const htmlparser2 = require("htmlparser2");
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
-const DEFAULT_EXTENSION = '.html';
-const DEFAULT_CONTENT_TYPE = 'text/plain';
 const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD || 'true') == 'true';
-
+const DEFAULT_TEXT_FORMAT = process.env.DEFAULT_TEXT_FORMAT || '.txt';
 
 /***
  * Workaround for dealing with broken certificates configuration.
@@ -127,7 +129,11 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
 
   const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
-  let downloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType);
+  // Downloading the file as a temporary file
+  let tmpDownloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType, '.tmp');
+  // Update its type, extention, path by its content type or by guessing it
+  let downloadResult = await updateFileType(tmpDownloadResult);
+  // Store the final file in the store
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
   if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
@@ -200,7 +206,7 @@ function calcTimeout(x) {
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile(remoteObject, headers, credentialsType) {
+async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
   const url = remoteObject.url.value;
 
   const requestBody = {url};
@@ -246,7 +252,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-      let extension = getExtensionFrom(response.headers);
+      let extension = fileExtension ? fileExtension : getExtensionFrom(response.headers);
       let bareName = uuid();
       let physicalFileName = [bareName, extension].join('');
       let localAddress = path.join(FILE_STORAGE, physicalFileName);
@@ -296,14 +302,14 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
   const stats = fs.statSync(downloadResult.cachedFileAddress);
   const fileSize = stats.size;
 
-  //--- read data from HTTP response headers
-  const headers = downloadResult.result.headers;
-  const contentType = getContentTypeFrom(headers);
+  //--- read data from the extension
+  const contentType = getContentTypeFromExtension(extension);
 
   try {
     //create the physical file
     let physicalUri = 'share://' + downloadResult.cachedFileName; //we assume filename here
-    let resultPhysicalFile = await createPhysicalFileDataObject(physicalUri,
+    let resultPhysicalFile = await createPhysicalFileDataObject(
+        physicalUri,
         remoteDataObjectQueryResult.subject.value,
         name,
         contentType,
@@ -333,12 +339,12 @@ function cleanUpFile(path) {
 }
 
 /**
- * Parses response headers to get the file content-type
+ * Parses extension to get the file content-type
  *
- * @param {array} headers HTML response header
+ * @param {string} extension The extension of the file
  */
-function getContentTypeFrom(headers) {
-  return headers['content-type'] || DEFAULT_CONTENT_TYPE;
+function getContentTypeFromExtension(extension) {
+  return mime.lookup(extension);
 }
 
 /**
@@ -348,7 +354,7 @@ function getContentTypeFrom(headers) {
  */
 function getExtensionFrom(headers) {
   const contentType = headers.get('content-type');
-  return `.${mime.extension(contentType)}` || DEFAULT_EXTENSION;
+  return `.${mime.extension(contentType)}`;
 }
 
 /**
@@ -364,4 +370,108 @@ async function saveFileToDisk(res, address) {
     writeStream.on('close', () => resolve());
     writeStream.on('error', reject);
   });
+}
+
+/**
+ * Updates the extension of a file, either by guessing it or by looking at the content type
+ *
+ * @param downloadResult Result of the download
+ */
+async function updateFileType(downloadResult) {
+  const contentType = downloadResult.result.headers.get('content-type');
+  const extension = mime.extension(contentType);
+
+  if (contentType == 'application/octet-stream' || !extension) {
+    // If content type in binary or if we didn't find an extension yet, try guessing
+    const guessedExtension = await guessRealExtension(downloadResult.cachedFileAddress);
+
+    if (guessedExtension && (guessedExtension != downloadResult.extension)) {
+      const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, guessedExtension);
+      downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
+      downloadResult.cachedFileName = updatedResult.cachedFileName;
+      downloadResult.extension = guessedExtension;
+    }
+  } else if (extension) {
+    // Weird binary case discarded, we can trust the content-type and deduce the extension from it
+    const formattedExtension = `.${extension}`;
+    const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, formattedExtension);
+    downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
+    downloadResult.cachedFileName = updatedResult.cachedFileName;
+    downloadResult.extension = formattedExtension;
+  }
+
+  return downloadResult;
+}
+
+/**
+ * Try deducing file extension using magic numbers and parsing
+ *
+ * @param fileAddress Location of the saved file
+ */
+async function guessRealExtension(fileAddress) {
+  const fileType = await FileType.fromFile(fileAddress)
+  if (fileType) {
+    // File type can be deduced from magic numbers
+    return `.${fileType.ext}`;
+  } else {
+    const bufferedFile = fs.readFileSync(fileAddress, 'utf8');
+    const isTextFile = isText(null, bufferedFile);
+
+    if (isTextFile) {
+      // File is a text file, guessing if it's html, else default text format
+      const doctype = getHtmlDoctypeFromBuffer(bufferedFile);
+      if (doctype) {
+        return '.html';
+      } else {
+        return DEFAULT_TEXT_FORMAT;
+      }
+    }
+  }
+
+  // Default to .bin
+  return '.bin';
+}
+
+/**
+ * Checks if a document has an html doctype
+ *
+ * @param {Buffer} bufferedFile The buffered file to parse
+ */
+function getHtmlDoctypeFromBuffer(bufferedFile) {
+  // Checking if we can find a closing tag. If yes, assuming HTML
+  // Can bring false positives (XML files for example would become HTML)
+  try {
+    let hasClosingTag = false;
+    const parser = new htmlparser2.Parser({
+        onclosetag(tagname) {
+          hasClosingTag = true;
+        }
+    });
+
+    parser.write(bufferedFile);
+    parser.end();
+
+    return hasClosingTag;
+  } catch (err) {
+    console.error('An error occured while trying to parse html');
+    console.error(err);
+    return false;
+  }
+}
+
+/**
+ * Rename file by changing its extension, async way
+ *
+ * @param fileAddress Location of the saved file
+ * @param extension The new extension to save the file with
+ */
+async function updateFileExtension(fileAddress, extension) {
+  const basename = path.basename(fileAddress, path.extname(fileAddress));
+  const fileName = basename + extension;
+  const newFileAddress = path.join(path.dirname(fileAddress), fileName);
+  await fs.move(fileAddress, newFileAddress);
+  return {
+    cachedFileAddress: newFileAddress,
+    cachedFileName: fileName
+  };
 }
