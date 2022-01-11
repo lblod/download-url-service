@@ -33,7 +33,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
 
     SELECT DISTINCT ?subject ?url ?uuid ?downloadEventUri
     WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+      GRAPH ?g {
         ?subject a nfo:RemoteDataObject .
         ${subjectValues}
         ?subject mu:uuid ?uuid;
@@ -54,7 +54,7 @@ async function getRequestHeadersForRemoteDataObject(subject) {
     PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
 
     SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
-     GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+     GRAPH ?g {
        ${sparqlEscapeUri(subject.value)} rpioHttp:requestHeader ?header.
        ?header http:fieldValue ?headerValue.
        ?header http:fieldName ?headerName.
@@ -128,19 +128,24 @@ async function updateStatus(uri, newStatusUri) {
     PREFIX    adms: <http://www.w3.org/ns/adms#>
 
     DELETE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+      GRAPH ?g {
         ${sparqlEscapeUri(uri)} adms:status ?status.
       }
     }
     WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+      GRAPH ?g {
         ${sparqlEscapeUri(uri)} adms:status ?status.
       }
     }
     ;
-    INSERT DATA{
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+    INSERT {
+      GRAPH ?g {
         ${sparqlEscapeUri(uri)} adms:status ${sparqlEscapeUri(newStatusUri)}.
+      }
+    }
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(uri)} a ?something.
       }
     }
   `;
@@ -272,8 +277,8 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
     PREFIX    ndo: <http://oscaf.sourceforge.net/ndo.html#>
     PREFIX    dct: <http://purl.org/dc/terms/>
 
-    INSERT DATA {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+    INSERT {
+      GRAPH ?g {
         ${sparqlEscapeUri(fileObjectUri)} a nfo:FileDataObject;
               a nfo:LocalFileDataObject;
               nfo:fileName ${sparqlEscapeString(name)};
@@ -284,6 +289,11 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
               nfo:fileSize ${sparqlEscapeInt(fileSize)};
               dbpedia:fileExtension ${sparqlEscapeString(extension)};
               nfo:fileCreated ${sparqlEscapeDate(created)}.
+      }
+    }
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(dataSourceUri)} a ?something.
       }
     }
   `;
@@ -301,16 +311,19 @@ async function saveHttpStatusCode(remoteUrl, statusCode) {
     }
     WHERE {
       BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
-      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
-
       GRAPH ?g {
         ?url ext:httpStatusCode ?code.
       }
     }
     ;
-    INSERT DATA {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+    INSERT {
+      GRAPH ?g {
         ${sparqlEscapeUri(remoteUrl)} ext:httpStatusCode ${sparqlEscapeInt(statusCode)}.
+      }
+    }
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(remoteUrl)} a ?something.
       }
     }
   `;
@@ -329,16 +342,20 @@ async function saveCacheError(remoteUrl, error) {
     }
     WHERE {
       BIND(${sparqlEscapeUri(remoteUrl)} as ?url)
-      BIND(${sparqlEscapeUri(DEFAULT_GRAPH)} as ?g)
 
       GRAPH ?g {
         ?url ext:cacheError ?code.
       }
     }
     ;
-    INSERT DATA {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+    INSERT {
+      GRAPH ?g {
         ${sparqlEscapeUri(remoteUrl)} ext:cacheError ${sparqlEscapeString(error.toString())}.
+      }
+    }
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(remoteUrl)} a ?something.
       }
     }
   `;
@@ -350,7 +367,7 @@ async function getRemoteDataObject(uuid) {
     PREFIX    mu: <http://mu.semte.ch/vocabularies/core/>
 
     SELECT DISTINCT ?s WHERE {
-      GRAPH ${sparqlEscapeUri(DEFAULT_GRAPH)} {
+      GRAPH ?g {
         ?s mu:uuid ${sparqlEscapeString(uuid)}.
       }
     }
