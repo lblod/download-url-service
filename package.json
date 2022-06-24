@@ -4,7 +4,7 @@
   "description": "Microservice downloading a local copy of a remote file by URL",
   "main": "app.js",
   "dependencies": {
-    "@lblod/mu-auth-sudo": "^0.2.0",
+    "@lblod/mu-auth-sudo": "^0.6.0-rc.1",
     "client-oauth2": "^4.3.3",
     "file-type": "^16.5.3",
     "fs-extra": "^8.1.0",
