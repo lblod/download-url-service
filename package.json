@@ -1,6 +1,6 @@
 {
   "name": "download-url-service",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Microservice downloading a local copy of a remote file by URL",
   "main": "app.js",
   "dependencies": {
