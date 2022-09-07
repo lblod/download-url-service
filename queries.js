@@ -54,11 +54,9 @@ async function getRequestHeadersForRemoteDataObject(subject) {
     PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
 
     SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
-     GRAPH ?g {
        ${sparqlEscapeUri(subject.value)} rpioHttp:requestHeader ?header.
        ?header http:fieldValue ?headerValue.
        ?header http:fieldName ?headerName.
-     }
     }
   `;
   await query(q);
