@@ -286,7 +286,7 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
               dct:format ${sparqlEscapeString(type)};
               nfo:fileSize ${sparqlEscapeInt(fileSize)};
               dbpedia:fileExtension ${sparqlEscapeString(extension)};
-              nfo:fileCreated ${sparqlEscapeDate(created)}.
+              dct:created ${sparqlEscapeDate(created)}.
       }
     }
     WHERE {
