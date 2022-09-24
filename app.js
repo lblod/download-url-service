@@ -210,9 +210,8 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
   const url = remoteObject.url.value;
 
   const requestBody = {url};
-  if (Object.keys(headers).length > 0) {
-    requestBody.options = {headers};
-  }
+  headers = headers || {};
+  requestBody.options = { headers };
 
   if (credentialsType == BASIC_AUTH) {
     const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
@@ -242,6 +241,7 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
 
     requestBody.options = tokenResponse.sign({
       method: 'GET',
+      headers,
       url: requestBody.url
     });
   }
