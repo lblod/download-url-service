@@ -54,9 +54,9 @@ async function getRequestHeadersForRemoteDataObject(subject) {
     PREFIX rpioHttp: <http://redpencil.data.gift/vocabularies/http/>
 
     SELECT DISTINCT ?header ?headerValue ?headerName WHERE {
-       ${sparqlEscapeUri(subject.value)} rpioHttp:requestHeader ?header.
-       ?header http:fieldValue ?headerValue.
-       ?header http:fieldName ?headerName.
+      ${sparqlEscapeUri(subject.value)} rpioHttp:requestHeader ?header.
+      ?header http:fieldValue ?headerValue.
+      ?header http:fieldName ?headerName.
     }
   `;
   await query(q);
@@ -286,7 +286,7 @@ async function createPhysicalFileDataObject(fileObjectUri, dataSourceUri, name, 
               dct:format ${sparqlEscapeString(type)};
               nfo:fileSize ${sparqlEscapeInt(fileSize)};
               dbpedia:fileExtension ${sparqlEscapeString(extension)};
-              nfo:fileCreated ${sparqlEscapeDate(created)}.
+              dct:created ${sparqlEscapeDate(created)}.
       }
     }
     WHERE {
