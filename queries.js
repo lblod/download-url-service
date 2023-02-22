@@ -75,9 +75,17 @@ async function getCredentialsTypeForRemoteDataObject(subject) {
         ?authenticationConf dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
     }
   `;
-  await query(q);
   const result = await query(q);
-  return result.results.bindings[0] ? result.results.bindings[0].securityConfigurationType.value : null;
+  const { bindings } = result.results;
+  let credentialsType = null;
+  for (const binding of bindings) {
+    const value = binding.securityConfigurationType.value;
+    if (value.includes(BASIC_AUTH) || value.includes(OAUTH2)) {
+      credentialsType = value;
+      break;
+    }
+  }
+  return credentialsType;
 };
 
 async function getBasicCredentialsForRemoteDataObject(subject) {
