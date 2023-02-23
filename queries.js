@@ -73,9 +73,13 @@ async function getCredentialsTypeForRemoteDataObject(subject) {
     SELECT DISTINCT ?securityConfigurationType WHERE {
         ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
         ?authenticationConf dgftSec:securityConfiguration/rdf:type ?securityConfigurationType .
+        VALUES ?securityConfigurationType {
+          <https://www.w3.org/2019/wot/security#BasicSecurityScheme>
+          <https://www.w3.org/2019/wot/security#OAuth2SecurityScheme>
+      }
     }
+    
   `;
-  await query(q);
   const result = await query(q);
   return result.results.bindings[0] ? result.results.bindings[0].securityConfigurationType.value : null;
 };
