@@ -211,17 +211,22 @@ function calcTimeout(x) {
  * Throws exception on failed download.
  */
 async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
-  const url = remoteObject.url.value;
-
-  const requestObject = {url};
-  headers = headers || {};
-  requestObject.options = { headers };
-
-  await appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType);
-
+  let url = '';
   try {
+    url = remoteObject.url.value;
+
+    const requestObject = {url};
+    headers = headers || {};
+    requestObject.options = { headers };
+
+    if(credentialsType) {
+      await appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType);
+    }
+
     let response = await fetch(requestObject.url, requestObject.options);
+
     await saveHttpStatusCode(remoteObject.subject.value, response.status);
+
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
@@ -253,9 +258,9 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
     }
   } catch (err) {
     console.error('Error while downloading a remote resource:');
-    console.error(`  remote resource: ${remoteObject.subject.value}`);
-    console.error(`  remote url: ${url}`);
-    console.error(`  error: ${err}`);
+    console.error(`Remote resource: ${remoteObject.subject.value}`);
+    console.error(`Remote url: ${url || '[ Not attached to remoteDataObject ]'}`);
+    console.error(`Error: ${err}`);
     await saveCacheError(remoteObject.subject.value, err);
     throw err;
   }
@@ -485,6 +490,5 @@ async function appendAuthenticationHeaders(requestObject, headers, remoteObject,
       url: requestObject.url
     });
   }
-
   return requestObject;
 }
