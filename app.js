@@ -194,6 +194,9 @@ async function rescheduleTasksOnStart() {
       //if rescheduling fails, we consider there is something really broken...
       console.log(`Fatal error for ${o.subject.value}`);
       await updateStatus(o.subject.value, FAILURE);
+      if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+        await deleteCredentials(o);
+      }
     }
   }
 }
