@@ -213,38 +213,7 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
   headers = headers || {};
   requestBody.options = { headers };
 
-  if (credentialsType == BASIC_AUTH) {
-    const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
-    const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
-        toString('base64');
-    requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
-  }
-
-  if (credentialsType == OAUTH2) {
-    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
-
-    const body = {
-      'client_id': credentialsInfo.clientId.value,
-      'client_secret': credentialsInfo.clientSecret.value
-    };
-    if (credentialsInfo.resource && credentialsInfo.resource.value)
-      body['resource'] = credentialsInfo.resource.value;
-
-    const oauthClient = new ClientOAuth2({
-      clientId: credentialsInfo.clientId.value,
-      clientSecret: credentialsInfo.clientSecret.value,
-      accessTokenUri: credentialsInfo.accessTokenUri.value,
-      authorizationGrants: ['credentials'],
-      body: body
-    });
-    const tokenResponse = await oauthClient.credentials.getToken();
-
-    requestBody.options = tokenResponse.sign({
-      method: 'GET',
-      headers,
-      url: requestBody.url
-    });
-  }
+  await appendAuthenticationHeaders(requestBody, headers, remoteObject, credentialsType);
 
   try {
     let response = await fetch(requestBody.url, requestBody.options);
@@ -474,4 +443,44 @@ async function updateFileExtension(fileAddress, extension) {
     cachedFileAddress: newFileAddress,
     cachedFileName: fileName
   };
+}
+
+/*
+ * Adds authentication headers to the requestObject.
+ * Note: has side effects
+ */
+async function appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType) {
+  if (credentialsType == BASIC_AUTH) {
+    const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
+    const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
+        toString('base64');
+    requestObject.options.headers.Authorization = `Basic ${encodedCredentials}`;
+  }
+  else if (credentialsType == OAUTH2) {
+    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
+
+    const body = {
+      'client_id': credentialsInfo.clientId.value,
+      'client_secret': credentialsInfo.clientSecret.value
+    };
+    if (credentialsInfo.resource && credentialsInfo.resource.value)
+      body['resource'] = credentialsInfo.resource.value;
+
+    const oauthClient = new ClientOAuth2({
+      clientId: credentialsInfo.clientId.value,
+      clientSecret: credentialsInfo.clientSecret.value,
+      accessTokenUri: credentialsInfo.accessTokenUri.value,
+      authorizationGrants: ['credentials'],
+      body: body
+    });
+    const tokenResponse = await oauthClient.credentials.getToken();
+
+    requestObject.options = tokenResponse.sign({
+      method: 'GET',
+      headers,
+      url: requestObject.url
+    });
+  }
+
+  return requestObject;
 }
