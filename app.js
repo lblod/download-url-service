@@ -209,14 +209,14 @@ function calcTimeout(x) {
 async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
   const url = remoteObject.url.value;
 
-  const requestBody = {url};
+  const requestObject = {url};
   headers = headers || {};
-  requestBody.options = { headers };
+  requestObject.options = { headers };
 
-  await appendAuthenticationHeaders(requestBody, headers, remoteObject, credentialsType);
+  await appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType);
 
   try {
-    let response = await fetch(requestBody.url, requestBody.options);
+    let response = await fetch(requestObject.url, requestObject.options);
     await saveHttpStatusCode(remoteObject.subject.value, response.status);
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
