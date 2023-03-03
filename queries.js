@@ -39,8 +39,8 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
         ?subject mu:uuid ?uuid;
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
-        OPTIONAL { ?downloadEventUri nuao:involves ?subject }
       }
+      OPTIONAL { ?downloadEventUri nuao:involves ?subject }
     }
   `;
 

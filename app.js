@@ -34,7 +34,7 @@ import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
 import FileType from 'file-type';
-import { isText } from 'istextorbinary'
+import { isText } from 'istextorbinary';
 
 const htmlparser2 = require("htmlparser2");
 
@@ -136,6 +136,7 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   // Store the final file in the store
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
+  //TODO: this needs re-thinking
   if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
     await deleteCredentials(remoteObject, credentialsType);
   }
@@ -193,6 +194,9 @@ async function rescheduleTasksOnStart() {
       //if rescheduling fails, we consider there is something really broken...
       console.log(`Fatal error for ${o.subject.value}`);
       await updateStatus(o.subject.value, FAILURE);
+      if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
+        await deleteCredentials(o);
+      }
     }
   }
 }
@@ -207,48 +211,22 @@ function calcTimeout(x) {
  * Throws exception on failed download.
  */
 async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
-  const url = remoteObject.url.value;
-
-  const requestBody = {url};
-  headers = headers || {};
-  requestBody.options = { headers };
-
-  if (credentialsType == BASIC_AUTH) {
-    const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
-    const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
-        toString('base64');
-    requestBody.options.headers.Authorization = `Basic ${encodedCredentials}`;
-  }
-
-  if (credentialsType == OAUTH2) {
-    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
-
-    const body = {
-      'client_id': credentialsInfo.clientId.value,
-      'client_secret': credentialsInfo.clientSecret.value
-    };
-    if (credentialsInfo.resource && credentialsInfo.resource.value)
-      body['resource'] = credentialsInfo.resource.value;
-
-    const oauthClient = new ClientOAuth2({
-      clientId: credentialsInfo.clientId.value,
-      clientSecret: credentialsInfo.clientSecret.value,
-      accessTokenUri: credentialsInfo.accessTokenUri.value,
-      authorizationGrants: ['credentials'],
-      body: body
-    });
-    const tokenResponse = await oauthClient.credentials.getToken();
-
-    requestBody.options = tokenResponse.sign({
-      method: 'GET',
-      headers,
-      url: requestBody.url
-    });
-  }
-
+  let url = '';
   try {
-    let response = await fetch(requestBody.url, requestBody.options);
+    url = remoteObject.url.value;
+
+    const requestObject = {url};
+    headers = headers || {};
+    requestObject.options = { headers };
+
+    if(credentialsType) {
+      await appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType);
+    }
+
+    let response = await fetch(requestObject.url, requestObject.options);
+
     await saveHttpStatusCode(remoteObject.subject.value, response.status);
+
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
@@ -280,9 +258,9 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
     }
   } catch (err) {
     console.error('Error while downloading a remote resource:');
-    console.error(`  remote resource: ${remoteObject.subject.value}`);
-    console.error(`  remote url: ${url}`);
-    console.error(`  error: ${err}`);
+    console.error(`Remote resource: ${remoteObject.subject.value}`);
+    console.error(`Remote url: ${url || '[ Not attached to remoteDataObject ]'}`);
+    console.error(`Error: ${err}`);
     await saveCacheError(remoteObject.subject.value, err);
     throw err;
   }
@@ -409,7 +387,7 @@ async function updateFileType(downloadResult) {
  * @param fileAddress Location of the saved file
  */
 async function guessRealExtension(fileAddress) {
-  const fileType = await FileType.fromFile(fileAddress)
+  const fileType = await FileType.fromFile(fileAddress);
   if (fileType) {
     // File type can be deduced from magic numbers
     return `.${fileType.ext}`;
@@ -474,4 +452,43 @@ async function updateFileExtension(fileAddress, extension) {
     cachedFileAddress: newFileAddress,
     cachedFileName: fileName
   };
+}
+
+/*
+ * Adds authentication headers to the requestObject.
+ * Note: has side effects
+ */
+async function appendAuthenticationHeaders(requestObject, headers, remoteObject, credentialsType) {
+  if (credentialsType == BASIC_AUTH) {
+    const credentialsInfo = await getBasicCredentialsForRemoteDataObject(remoteObject.subject);
+    const encodedCredentials = Buffer.from(`${credentialsInfo.user.value}:${credentialsInfo.pass.value}`).
+        toString('base64');
+    requestObject.options.headers.Authorization = `Basic ${encodedCredentials}`;
+  }
+  else if (credentialsType == OAUTH2) {
+    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
+
+    const body = {
+      'client_id': credentialsInfo.clientId.value,
+      'client_secret': credentialsInfo.clientSecret.value
+    };
+    if (credentialsInfo.resource && credentialsInfo.resource.value)
+      body['resource'] = credentialsInfo.resource.value;
+
+    const oauthClient = new ClientOAuth2({
+      clientId: credentialsInfo.clientId.value,
+      clientSecret: credentialsInfo.clientSecret.value,
+      accessTokenUri: credentialsInfo.accessTokenUri.value,
+      authorizationGrants: ['credentials'],
+      body: body
+    });
+    const tokenResponse = await oauthClient.credentials.getToken();
+
+    requestObject.options = tokenResponse.sign({
+      method: 'GET',
+      headers,
+      url: requestObject.url
+    });
+  }
+  return requestObject;
 }
