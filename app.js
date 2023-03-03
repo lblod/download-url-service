@@ -34,7 +34,7 @@ import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
 import FileType from 'file-type';
-import { isText } from 'istextorbinary'
+import { isText } from 'istextorbinary';
 
 const htmlparser2 = require("htmlparser2");
 
@@ -409,7 +409,7 @@ async function updateFileType(downloadResult) {
  * @param fileAddress Location of the saved file
  */
 async function guessRealExtension(fileAddress) {
-  const fileType = await FileType.fromFile(fileAddress)
+  const fileType = await FileType.fromFile(fileAddress);
   if (fileType) {
     // File type can be deduced from magic numbers
     return `.${fileType.ext}`;
