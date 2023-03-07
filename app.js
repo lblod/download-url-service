@@ -127,7 +127,6 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
     return acc;
   }, {});
 
-  const credentialsType = await getCredentialsTypeForRemoteDataObject(remoteObject.subject);
 
   // Downloading the file as a temporary file
   let tmpDownloadResult = await downloadFile(remoteObject, requestHeaders, credentialsType, '.tmp');
@@ -136,10 +135,6 @@ async function performDownloadTask(remoteObject, downloadEventUri) {
   // Store the final file in the store
   let physicalFileUri = await associateCachedFile(downloadResult, remoteObject);
 
-  //TODO: this needs re-thinking
-  if(REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD){
-    await deleteCredentials(remoteObject, credentialsType);
-  }
 
   await updateDownloadEventOnSuccess(downloadEventUri, physicalFileUri);
 
