@@ -375,7 +375,6 @@ async function getRemoteDataObject(uuid) {
     }
   `;
   let result = await query(q);
-  console.log(result);
   return result.results.bindings ? result.results.bindings[0].s.value : null;
 }
 
