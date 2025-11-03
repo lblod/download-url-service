@@ -29,14 +29,13 @@ import fetch from 'node-fetch';
 import fs from 'fs-extra';
 import mime from 'mime-types';
 import path from 'path';
-import RootCas from 'ssl-root-cas/latest';
+import RootCas from 'ssl-root-cas/latest.js';
 import https from 'https';
 import bodyParser from 'body-parser';
 import ClientOAuth2 from 'client-oauth2';
 import FileType from 'file-type';
 import { isText } from 'istextorbinary';
-
-const htmlparser2 = require("htmlparser2");
+import * as htmlparser2 from 'htmlparser2'
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
