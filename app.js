@@ -32,7 +32,7 @@ import path from 'path';
 import RootCas from 'ssl-root-cas/latest.js';
 import https from 'https';
 import bodyParser from 'body-parser';
-import ClientOAuth2 from 'client-oauth2';
+import { ClientCredentials } from 'simple-oauth2';
 import FileType from 'file-type';
 import { isText } from 'istextorbinary';
 import * as htmlparser2 from 'htmlparser2'
@@ -84,6 +84,7 @@ app.post('/process-remote-data-object/:uuid', async function(req, res, next) {
   } catch (e) {
     console.log(`Something went wrong while retrieving remote data object with id ${uuid}`);
     console.log(e);
+    res.status(404).end(`Something went wrong while retrieving remote data object with id ${uuid}`);
   }
 });
 
@@ -465,29 +466,38 @@ async function appendAuthenticationHeaders(requestObject, headers, remoteObject,
     requestObject.options.headers.Authorization = `Basic ${encodedCredentials}`;
   }
   else if (credentialsType == OAUTH2) {
-    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(remoteObject.subject);
+    const credentialsInfo = await getOauthCredentialsForRemoteDataObject(
+      remoteObject.subject
+    );
 
-    const body = {
-      'client_id': credentialsInfo.clientId.value,
-      'client_secret': credentialsInfo.clientSecret.value
+    const tokenURL = new URL(credentialsInfo.accessTokenUri.value);
+
+    const config = {
+      client: {
+        id: credentialsInfo.clientId.value,
+        secret: credentialsInfo.clientSecret.value,
+      },
+      auth: {
+        tokenHost: `${tokenURL.protocol}//${tokenURL.host}`,
+        tokenPath: tokenURL.pathname,
+      }
     };
-    if (credentialsInfo.resource && credentialsInfo.resource.value)
-      body['resource'] = credentialsInfo.resource.value;
 
-    const oauthClient = new ClientOAuth2({
-      clientId: credentialsInfo.clientId.value,
-      clientSecret: credentialsInfo.clientSecret.value,
-      accessTokenUri: credentialsInfo.accessTokenUri.value,
-      authorizationGrants: ['credentials'],
-      body: body
+    const client = new ClientCredentials(config);
+    const tokenResponse = await client.getToken({
+      scope: credentialsInfo.scope?.value,
     });
-    const tokenResponse = await oauthClient.credentials.getToken();
+    
 
-    requestObject.options = tokenResponse.sign({
-      method: 'GET',
-      headers,
-      url: requestObject.url
-    });
+    requestObject.options = {
+      method: "GET",
+      headers: {
+        ...headers,
+        Authorization: `Bearer ${tokenResponse.token.access_token}`,
+      },
+      url: requestObject.url,
+    };
   }
+
   return requestObject;
 }

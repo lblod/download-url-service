@@ -110,7 +110,7 @@ async function getOauthCredentialsForRemoteDataObject(subject) {
     PREFIX security: <https://www.w3.org/2019/wot/security#>
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
-    SELECT DISTINCT ?clientId ?clientSecret ?accessTokenUri ?resource WHERE {
+    SELECT DISTINCT ?clientId ?clientSecret ?accessTokenUri ?resource ?scope WHERE {
         ${sparqlEscapeUri(subject.value)} dgftSec:targetAuthenticationConfiguration ?authenticationConf .
         ?authenticationConf dgftSec:secrets ?secrets ;
           dgftSec:securityConfiguration ?securityConfiguration .
@@ -118,9 +118,9 @@ async function getOauthCredentialsForRemoteDataObject(subject) {
           oauthSession:clientSecret ?clientSecret .
         ?securityConfiguration security:token ?accessTokenUri .
         OPTIONAL { ?securityConfiguration oauthSession:resource ?resource . }.
+        OPTIONAL { ?securityConfiguration oauthSession:scope ?scope }
     }
   `;
-  await query(q);
   const result = await query(q);
   return result.results.bindings[0] || null;
 };
@@ -375,6 +375,7 @@ async function getRemoteDataObject(uuid) {
     }
   `;
   let result = await query(q);
+  console.log(result);
   return result.results.bindings ? result.results.bindings[0].s.value : null;
 }
 
