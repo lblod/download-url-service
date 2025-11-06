@@ -1,10 +1,10 @@
 {
   "name": "download-url-service",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Microservice downloading a local copy of a remote file by URL",
   "main": "app.js",
   "dependencies": {
-    "@lblod/mu-auth-sudo": "^0.6.0-rc.1",
+    "@lblod/mu-auth-sudo": "^0.6.2",
     "client-oauth2": "^4.3.3",
     "file-type": "^16.5.3",
     "fs-extra": "^8.1.0",
