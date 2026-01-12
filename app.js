@@ -484,10 +484,21 @@ async function appendAuthenticationHeaders(requestObject, headers, remoteObject,
     };
 
     const client = new ClientCredentials(config);
-    const tokenResponse = await client.getToken({
-      scope: credentialsInfo.scope?.value,
-    });
-    
+
+    let tokenResponse;
+    if(
+      requestObject?.url?.value &&
+       requestObject.url.value.includes("vgcbe.sharepoint.com")
+    ) {
+      console.log("!!!!!!!!!!!!!!!!! APPLYING TEMPORARY WORKAROUND FOR VGC !!!!!!!!!!!!!!!!!")
+      console.log("!!!!!!!!!!!!!!!!! IGNORING SCOPE IN OAUTH2 !!!!!!!!!!!!!!!!!")
+      tokenResponse = await client.getToken();
+    }
+    else {
+      tokenResponse = await client.getToken({
+        scope: credentialsInfo.scope?.value,
+      });
+    }
 
     requestObject.options = {
       method: "GET",
