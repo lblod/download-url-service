@@ -487,8 +487,8 @@ async function appendAuthenticationHeaders(requestObject, headers, remoteObject,
 
     let tokenResponse;
     if(
-      requestObject?.url?.value &&
-       requestObject.url.value.includes("vgcbe.sharepoint.com")
+      requestObject?.url &&
+       requestObject.url.includes("vgcbe.sharepoint.com")
     ) {
       console.log("!!!!!!!!!!!!!!!!! APPLYING TEMPORARY WORKAROUND FOR VGC !!!!!!!!!!!!!!!!!")
       console.log("!!!!!!!!!!!!!!!!! IGNORING SCOPE IN OAUTH2 !!!!!!!!!!!!!!!!!")
