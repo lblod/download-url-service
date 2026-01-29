@@ -239,7 +239,7 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
 
       //--- write the file
       try {
-        await saveFileToDisk(response, physicalPath);
+        await saveStreamToDisk(response.body, physicalPath);
         return {
           resource: remoteObject,
           result: response,
@@ -340,15 +340,18 @@ function getExtensionFrom(headers) {
 }
 
 /**
- * Save file, async way
+ * Save stream to the path on disk.
  *
- * @param res Response of the fetch to download the file
- * @param address Location to save the file
+ * @async
+ * @function
+ * @param {Stream} stream - Stream to pipe into a file on disk
+ * @param {String} path - Location to save the file
+ * @returns {undefined} Nothing
  */
-async function saveFileToDisk(res, address) {
+async function saveStreamToDisk(stream, path) {
   return new Promise((resolve, reject) => {
-    const writeStream = fs.createWriteStream(address);
-    res.body.pipe(writeStream);
+    const writeStream = fs.createWriteStream(path);
+    stream.pipe(writeStream);
     writeStream.on('close', () => resolve());
     writeStream.on('error', reject);
   });
