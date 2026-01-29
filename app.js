@@ -231,25 +231,29 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
       //--- Status: OK
       //--- create file attributes
       let extension = fileExtension ? fileExtension : getExtensionFrom(response.headers);
-      let bareName = uuid();
-      let physicalFileName = [bareName, extension].join('');
-      let localAddress = path.join(FILE_STORAGE, physicalFileName);
+      let uuidName = uuid();
+      let fileName = "";
+      let physicalFileName = [uuidName, extension].join('');
+      let logicalFileName = [fileName, extension].join('');
+      let physicalPath = path.join(FILE_STORAGE, physicalFileName);
 
       //--- write the file
       try {
-        await saveFileToDisk(response, localAddress);
+        await saveFileToDisk(response, physicalPath);
         return {
           resource: remoteObject,
           result: response,
-          cachedFileAddress: localAddress,
-          cachedFileName: physicalFileName,
-          bareName: bareName,
-          extension: extension
+          physicalPath,
+          physicalFileName,
+          uuidName,
+          fileName,
+          logicalFileName,
+          extension,
         };
       } catch (err) {
         //--- We need to clean up on error during file writing
-        console.log(`${localAddress} failed writing to disk, cleaning up...`);
-        cleanUpFile(localAddress);
+        console.log(`${physicalPath} failed writing to disk, cleaning up...`);
+        cleanUpFile(physicalPath);
         throw err;
       }
     } else {
@@ -272,12 +276,12 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
 async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) {
 
   const uri = downloadResult.resource.subject.value;
-  const name = downloadResult.cachedFileName;
+  const name = downloadResult.physicalFileName;
   const extension = downloadResult.extension;
   const date = Date.now();
 
   //--- get the file's size
-  const stats = fs.statSync(downloadResult.cachedFileAddress);
+  const stats = fs.statSync(downloadResult.physicalPath);
   const fileSize = stats.size;
 
   //--- read data from the extension
@@ -285,7 +289,7 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
 
   try {
     //create the physical file
-    let physicalUri = 'share://' + downloadResult.cachedFileName; //we assume filename here
+    let physicalUri = 'share://' + downloadResult.physicalFileName; //we assume filename here
     let resultPhysicalFile = await createPhysicalFileDataObject(
         physicalUri,
         remoteDataObjectQueryResult.subject.value,
@@ -298,7 +302,7 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
   } catch (err) {
     console.error('Error while associating a downloaded file to a FileAddress object');
     console.error(err);
-    console.error(`  downloaded file: ${downloadResult.cachedFileAddress}`);
+    console.error(`  downloaded file: ${downloadResult.physicalPath}`);
     console.error(`  FileAddress object: ${uri}`);
     await saveCacheError(uri, err);
     throw err;
@@ -361,20 +365,20 @@ async function updateFileType(downloadResult) {
 
   if (contentType == 'application/octet-stream' || !extension) {
     // If content type in binary or if we didn't find an extension yet, try guessing
-    const guessedExtension = await guessRealExtension(downloadResult.cachedFileAddress);
+    const guessedExtension = await guessRealExtension(downloadResult.physicalPath);
 
     if (guessedExtension && (guessedExtension != downloadResult.extension)) {
-      const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, guessedExtension);
-      downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
-      downloadResult.cachedFileName = updatedResult.cachedFileName;
+      const updatedResult = await updateFileExtension(downloadResult.physicalPath, guessedExtension);
+      downloadResult.physicalPath = updatedResult.physicalPath;
+      downloadResult.physicalFileName = updatedResult.physicalFileName;
       downloadResult.extension = guessedExtension;
     }
   } else if (extension) {
     // Weird binary case discarded, we can trust the content-type and deduce the extension from it
     const formattedExtension = `.${extension}`;
-    const updatedResult = await updateFileExtension(downloadResult.cachedFileAddress, formattedExtension);
-    downloadResult.cachedFileAddress = updatedResult.cachedFileAddress;
-    downloadResult.cachedFileName = updatedResult.cachedFileName;
+    const updatedResult = await updateFileExtension(downloadResult.physicalPath, formattedExtension);
+    downloadResult.physicalPath = updatedResult.physicalPath;
+    downloadResult.physicalFileName = updatedResult.physicalFileName;
     downloadResult.extension = formattedExtension;
   }
 
@@ -449,8 +453,8 @@ async function updateFileExtension(fileAddress, extension) {
   const newFileAddress = path.join(path.dirname(fileAddress), fileName);
   await fs.move(fileAddress, newFileAddress);
   return {
-    cachedFileAddress: newFileAddress,
-    cachedFileName: fileName
+    physicalPath: newFileAddress,
+    physicalFileName: fileName
   };
 }
 
