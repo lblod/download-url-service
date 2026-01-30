@@ -36,6 +36,8 @@ import { ClientCredentials } from 'simple-oauth2';
 import FileType from 'file-type';
 import { isText } from 'istextorbinary';
 import * as htmlparser2 from 'htmlparser2'
+import contentDisposition from 'content-disposition';
+import url from 'node:url';
 
 const CACHING_MAX_RETRIES = parseInt(process.env.CACHING_MAX_RETRIES || 30);
 const FILE_STORAGE = process.env.FILE_STORAGE || '/share';
@@ -210,7 +212,7 @@ function calcTimeout(x) {
  * Downloads the resource and takes care of errors.
  * Throws exception on failed download.
  */
-async function downloadFile(remoteObject, headers, credentialsType, fileExtension=null) {
+async function downloadFile(remoteObject, headers, credentialsType) {
   let url = '';
   try {
     url = remoteObject.url.value;
@@ -230,25 +232,39 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
     if (response.ok) { // res.status >= 200 && res.status < 300
       //--- Status: OK
       //--- create file attributes
-      let extension = fileExtension ? fileExtension : getExtensionFrom(response.headers);
-      let uuidName = uuid();
-      let fileName = "";
-      let physicalFileName = [uuidName, extension].join('');
-      let logicalFileName = [fileName, extension].join('');
-      let physicalPath = path.join(FILE_STORAGE, physicalFileName);
+      const extension = '.tmp';
+      const uuidName = uuid();
+
+      let fileName;
+      const fileNameExt = tryGetFilenameWithExtension(response);
+      let extensionFromFileName = path.extname(fileNameExt || '');
+      if (extensionFromFileName !== ''
+          && extensionFromFileName !== '.'
+          && mime.lookup(extensionFromFileName)) {
+        // If useful extension, keep it
+        fileName = path.basename(fileNameExt, extensionFromFileName);
+      } else {
+        // Not useful extension, keep as part of filename
+        // Also when fileNameExt is undefined
+        fileName = fileNameExt || uuidName;
+        extensionFromFileName = undefined;
+      }
+      
+      const physicalFileName = [uuidName, extension].join('');
+      const logicalFileName = [fileName, extension].join('');
+      const physicalPath = path.join(FILE_STORAGE, physicalFileName);
 
       //--- write the file
       try {
         await saveStreamToDisk(response.body, physicalPath);
         return {
-          resource: remoteObject,
-          result: response,
+          remoteObject,
+          response,
           physicalPath,
           physicalFileName,
-          uuidName,
-          fileName,
           logicalFileName,
           extension,
+          extensionFromFileName,
         };
       } catch (err) {
         //--- We need to clean up on error during file writing
@@ -275,8 +291,8 @@ async function downloadFile(remoteObject, headers, credentialsType, fileExtensio
  */
 async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) {
 
-  const uri = downloadResult.resource.subject.value;
-  const name = downloadResult.physicalFileName;
+  const uri = downloadResult.remoteObject.subject.value;
+  const name = downloadResult.logicalFileName;
   const extension = downloadResult.extension;
   const date = Date.now();
 
@@ -289,7 +305,7 @@ async function associateCachedFile(downloadResult, remoteDataObjectQueryResult) 
 
   try {
     //create the physical file
-    let physicalUri = 'share://' + downloadResult.physicalFileName; //we assume filename here
+    let physicalUri = 'share://' + downloadResult.physicalFileName;
     let resultPhysicalFile = await createPhysicalFileDataObject(
         physicalUri,
         remoteDataObjectQueryResult.subject.value,
@@ -340,6 +356,45 @@ function getExtensionFrom(headers) {
 }
 
 /**
+ * Try to get the full filename from the HTTP response, with extension
+ * included. This tries multiple mechanisms in order: get the filename from the
+ * HTTP header 'Content-Disposition', get the filename from URL parameters
+ * (guesswork), or get the filename from the path in the URL.
+ *
+ * @function
+ * @param {HTTP Response} response - Response object from the HTTP request.
+ * @returns {String | undefined} Filename with extension, or last part of the
+ * path in the URL. Returns undefined when URL path is undefined.
+ */
+function tryGetFilenameWithExtension(response) {
+  const headerCD = response.headers.get('Content-Disposition');
+  if (headerCD) {
+    const disposition = contentDisposition.parse(headerCD);
+    if (disposition && disposition.type === 'attachment') {
+      const parameters = disposition.parameters;
+      if (parameters.filename)
+        return parameters.filename;
+    }
+  }
+
+  // Look for URL parameters that might give a filename
+  const url = new URL(response.url);
+  const parameters = url.searchParams;
+  const filename1 = parameters.get('filename');
+  if (filename1) return filename1;
+  const filename2 = parameters.get('file');
+  if (filename2) return filename2;
+  const filename3 = parameters.get('name');
+  if (filename3) return filename3;
+
+  // Last resort: return last segment of URL path
+  const urlPath = url.pathname || '';
+  const pathSegments = urlPath.split('/');
+  const lastSegment = pathSegments.pop();
+  return lastSegment;
+}
+
+/**
  * Save stream to the path on disk.
  *
  * @async
@@ -358,30 +413,69 @@ async function saveStreamToDisk(stream, path) {
 }
 
 /**
- * Updates the extension of a file, either by guessing it or by looking at the content type
+ * Updates the extension of a file. It first trusts the extension that was
+ * given to the file. If that does not exist, it looks at the Content-Type HTTP
+ * header to deduce an extension, or if the file is a raw data stream, guess it
+ * by its content.
  *
- * @param downloadResult Result of the download
+ * @async
+ * @function
+ * @param {Object} downloadResult - Result of the download
+ * @returns {Object} Same downloadResult object that was given is parameter,
+ * but with updated values.
  */
 async function updateFileType(downloadResult) {
-  const contentType = downloadResult.result.headers.get('content-type');
+  if (downloadResult.extensionFromFileName) {
+    const updatedResult = await updatePhysicalFileExtension(
+      downloadResult.physicalPath,
+      downloadResult.extensionFromFileName,
+    );
+    downloadResult.physicalPath = updatedResult.physicalPath;
+    downloadResult.physicalFileName = updatedResult.physicalFileName;
+    downloadResult.logicalFileName = updateLogicalFileExtension(
+      downloadResult.logicalFileName,
+      downloadResult.extensionFromFileName,
+    );
+    downloadResult.extension = downloadResult.extensionFromFileName;
+    return downloadResult;
+  }
+
+  const contentType = downloadResult.response.headers.get('content-type');
   const extension = mime.extension(contentType);
 
-  if (contentType == 'application/octet-stream' || !extension) {
+  if (contentType === 'application/octet-stream' || !extension) {
     // If content type in binary or if we didn't find an extension yet, try guessing
     const guessedExtension = await guessRealExtension(downloadResult.physicalPath);
 
     if (guessedExtension && (guessedExtension != downloadResult.extension)) {
-      const updatedResult = await updateFileExtension(downloadResult.physicalPath, guessedExtension);
+      const updatedResult = await updatePhysicalFileExtension(
+        downloadResult.physicalPath,
+        guessedExtension
+      );
       downloadResult.physicalPath = updatedResult.physicalPath;
       downloadResult.physicalFileName = updatedResult.physicalFileName;
+      downloadResult.logicalFileName = updateLogicalFileExtension(
+        downloadResult.logicalFileName,
+        guessedExtension,
+      );
       downloadResult.extension = guessedExtension;
+      return downloadResult;
     }
-  } else if (extension) {
+  }
+
+  if (extension) {
     // Weird binary case discarded, we can trust the content-type and deduce the extension from it
     const formattedExtension = `.${extension}`;
-    const updatedResult = await updateFileExtension(downloadResult.physicalPath, formattedExtension);
+    const updatedResult = await updatePhysicalFileExtension(
+      downloadResult.physicalPath,
+      formattedExtension
+    );
     downloadResult.physicalPath = updatedResult.physicalPath;
     downloadResult.physicalFileName = updatedResult.physicalFileName;
+    downloadResult.logicalFileName = updateLogicalFileExtension(
+      downloadResult.logicalFileName,
+      formattedExtension,
+    );
     downloadResult.extension = formattedExtension;
   }
 
@@ -445,20 +539,40 @@ function getHtmlDoctypeFromBuffer(bufferedFile) {
 }
 
 /**
- * Rename file by changing its extension, async way
+ * Rename a file by changing its extension.
  *
- * @param fileAddress Location of the saved file
- * @param extension The new extension to save the file with
+ * @async
+ * @function
+ * @param {String} physicalPath - Path of the saved file that needs a new
+ * extension.
+ * @param {String} extension - The new extension to save the file with, e.g.
+ * ".pdf".
+ * @returns {Object} Object with `physicalPath` and `physicalFileName`
+ * containing the updated values.
  */
-async function updateFileExtension(fileAddress, extension) {
-  const basename = path.basename(fileAddress, path.extname(fileAddress));
+async function updatePhysicalFileExtension(physicalPath, extension) {
+  const basename = path.basename(physicalPath, path.extname(physicalPath));
   const fileName = basename + extension;
-  const newFileAddress = path.join(path.dirname(fileAddress), fileName);
-  await fs.move(fileAddress, newFileAddress);
+  const newPhysicalPath = path.join(path.dirname(physicalPath), fileName);
+  await fs.move(physicalPath, newPhysicalPath);
   return {
-    physicalPath: newFileAddress,
+    physicalPath: newPhysicalPath,
     physicalFileName: fileName
   };
+}
+
+/**
+ * Change the extension of a filename to something new.
+ *
+ * @function
+ * @param {String} logicalFileName - Filename to change the extension of.
+ * @param {String} extension - New extension.
+ * @returns {String} Same filename, but with the extension changed.
+ */
+function updateLogicalFileExtension(logicalFileName, extension) {
+  const basename = path.basename(logicalFileName, path.extname(logicalFileName));
+  const fileName = basename + extension;
+  return path.join(path.dirname(logicalFileName), fileName);
 }
 
 /*
