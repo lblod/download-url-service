@@ -390,6 +390,10 @@ function tryGetFilename(response, remoteObject) {
   if (filename3) return filename3;
 
   // Try the suggested filename from the remote data object (if available)
+  // This suggestion is assumed to come from another step; which likely
+  //  applied a heuristic to suggest a filename. (e.g. import-submission-service)
+  // We leave the remote host in charge; but if nothing else is provided
+  // we take this.
   if (remoteObject.suggestedFilename?.value) {
     return remoteObject.suggestedFilename.value;
   }
