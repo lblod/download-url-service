@@ -236,7 +236,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
       const uuidName = uuid();
 
       let fileName;
-      const fileNameExt = tryGetFilename(response, remoteObject);
+      const fileNameExt = tryGetFilenameWithExtension(response, remoteObject);
       let extensionFromFileName = path.extname(fileNameExt || '');
       if (extensionFromFileName !== ''
           && extensionFromFileName !== '.'
@@ -368,7 +368,7 @@ function getExtensionFrom(headers) {
  * @returns {String | undefined} Filename with extension, or last part of the
  * path in the URL. Returns undefined when URL path is undefined.
  */
-function tryGetFilename(response, remoteObject) {
+function tryGetFilenameWithExtension(response, remoteObject) {
   const headerCD = response.headers.get('Content-Disposition');
   if (headerCD) {
     const disposition = contentDisposition.parse(headerCD);
