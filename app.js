@@ -236,7 +236,7 @@ async function downloadFile(remoteObject, headers, credentialsType) {
       const uuidName = uuid();
 
       let fileName;
-      const fileNameExt = tryGetFilenameWithExtension(response);
+      const fileNameExt = tryGetFilenameWithExtension(response, remoteObject);
       let extensionFromFileName = path.extname(fileNameExt || '');
       if (extensionFromFileName !== ''
           && extensionFromFileName !== '.'
@@ -359,14 +359,16 @@ function getExtensionFrom(headers) {
  * Try to get the full filename from the HTTP response, with extension
  * included. This tries multiple mechanisms in order: get the filename from the
  * HTTP header 'Content-Disposition', get the filename from URL parameters
- * (guesswork), or get the filename from the path in the URL.
+ * (guesswork), get a suggested filename from the remote data object, or get
+ * the filename from the path in the URL.
  *
  * @function
  * @param {HTTP Response} response - Response object from the HTTP request.
+ * @param {Object} remoteObject - Remote data object query result.
  * @returns {String | undefined} Filename with extension, or last part of the
  * path in the URL. Returns undefined when URL path is undefined.
  */
-function tryGetFilenameWithExtension(response) {
+function tryGetFilenameWithExtension(response, remoteObject) {
   const headerCD = response.headers.get('Content-Disposition');
   if (headerCD) {
     const disposition = contentDisposition.parse(headerCD);
@@ -386,6 +388,15 @@ function tryGetFilenameWithExtension(response) {
   if (filename2) return filename2;
   const filename3 = parameters.get('name');
   if (filename3) return filename3;
+
+  // Try the suggested filename from the remote data object (if available)
+  // This suggestion is assumed to come from another step; which likely
+  //  applied a heuristic to suggest a filename. (e.g. import-submission-service)
+  // We leave the remote host in charge; but if nothing else is provided
+  // we take this.
+  if (remoteObject.suggestedFilename?.value) {
+    return remoteObject.suggestedFilename.value;
+  }
 
   // Last resort: return last segment of URL path
   const urlPath = url.pathname || '';
