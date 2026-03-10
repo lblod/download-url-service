@@ -7,7 +7,7 @@
   "dependencies": {
     "@lblod/mu-auth-sudo": "^0.6.2",
     "content-disposition": "^1.0.1",
-    "file-type": "^16.5.3",
+    "file-type": "^21.3.1",
     "fs-extra": "^8.1.0",
     "htmlparser2": "^7.2.0",
     "istextorbinary": "^6.0.0",
