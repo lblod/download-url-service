@@ -2,12 +2,26 @@ import { uuid, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeInt, sparqlEscap
 import { querySudo as query, updateSudo as update } from '@lblod/mu-auth-sudo';
 
 const DEFAULT_GRAPH = (process.env || {}).DEFAULT_GRAPH || 'http://mu.semte.ch/graphs/public';
+// Remote data objects with one of these dct:creators are downloaded by another service.
+const SKIP_CREATORS = (process.env.SKIP_CREATORS || '')
+  .split(',')
+  .map((creator) => creator.trim())
+  .filter((creator) => creator);
 const READY = 'http://lblod.data.gift/file-download-statuses/ready-to-be-cached';
 const ONGOING = 'http://lblod.data.gift/file-download-statuses/ongoing';
 const SUCCESS = 'http://lblod.data.gift/file-download-statuses/success';
 const FAILURE = 'http://lblod.data.gift/file-download-statuses/failure';
 const BASIC_AUTH = 'https://www.w3.org/2019/wot/security#BasicSecurityScheme';
 const OAUTH2 = 'https://www.w3.org/2019/wot/security#OAuth2SecurityScheme';
+
+function skipCreatorsFilter() {
+  if (!SKIP_CREATORS.length) return '';
+  return `
+    FILTER NOT EXISTS {
+      ?subject dct:creator ?creator.
+      VALUES ?creator { ${SKIP_CREATORS.map(sparqlEscapeUri).join(' ')} }
+    }`;
+}
 
 /**
  * get remote data objects
@@ -40,6 +54,7 @@ async function getRemoteDataObjectByStatus(status, uris = []) {
                  nie:url ?url;
                  adms:status ${sparqlEscapeUri(status)}.
         OPTIONAL { ?subject <http://mu.semte.ch/vocabularies/ext/suggestedFilename> ?suggestedFilename. }
+        ${skipCreatorsFilter()}
       }
       OPTIONAL { ?downloadEventUri nuao:involves ?subject }
     }
