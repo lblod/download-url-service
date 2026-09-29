@@ -58,6 +58,7 @@ The following environment variales can be configured:
 * `FILE_STORAGE`: absolute path inside the container in which the downloaded files must be stored
 * `PING_DB_INTERVAL`: interval in seconds to ping the database on startup of the service
 * `REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD`: Removes secrets after reaching final state (failed or success), defaults to `true`
+* `SKIP_CREATORS`: comma-separated `dct:creator` URIs of remote data objects this service must ignore, because another service downloads them. Empty by default. For example, [submission-pipeline-service](https://github.com/lblod/submission-pipeline-service) downloads submissions itself and needs `http://lblod.data.gift/services/automatic-submission-service,http://lblod.data.gift/services/import-submission-service`.
 
 ### Model
 The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/file-download-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
