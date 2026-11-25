@@ -29,8 +29,8 @@ import fetch from 'node-fetch';
 import fs from 'fs-extra';
 import mime from 'mime-types';
 import path from 'path';
-import RootCas from 'ssl-root-cas/latest.js';
 import https from 'https';
+import tls from 'tls';
 import bodyParser from 'body-parser';
 import { ClientCredentials } from 'simple-oauth2';
 import FileType from 'file-type';
@@ -45,15 +45,16 @@ const REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD = (process.env.REMOVE_AUTHENTI
 const DEFAULT_TEXT_FORMAT = process.env.DEFAULT_TEXT_FORMAT || '.txt';
 
 /***
- * Workaround for dealing with broken certificates configuration.
- * We downloaded the missing intermediate certificates
+ * Trust Node's built-in CA store and extend it with the certificates in
+ * /app/certificates/. The extra certificates cover servers with an
+ * incomplete chain or a private CA. Public roots are already in the Node
+ * store, so they do not need to be added here.
  */
-const rootCas = RootCas.create();
 const certificatesDir = '/app/certificates/';
-fs.readdirSync(certificatesDir).forEach(file => {
-  rootCas.addFile(certificatesDir + file);
+const customCertificates = fs.readdirSync(certificatesDir).map(file => {
+  return fs.readFileSync(path.join(certificatesDir, file));
 });
-https.globalAgent.options.ca = rootCas;
+https.globalAgent.options.ca = [...tls.rootCertificates, ...customCertificates];
 
 waitForDatabase(rescheduleTasksOnStart);
 

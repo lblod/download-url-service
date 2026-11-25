@@ -59,6 +59,12 @@ The following environment variales can be configured:
 * `PING_DB_INTERVAL`: interval in seconds to ping the database on startup of the service
 * `REMOVE_AUTHENTICATION_SECRETS_AFTER_DOWLOAD`: Removes secrets after reaching final state (failed or success), defaults to `true`
 
+### Certificates
+The service trusts Node's built-in CA store. Every file in `certificates/` is
+added to that store at startup. These extra files are only needed for servers
+with an incomplete certificate chain or a private CA. Public roots are already
+in the Node store, so they do not need to be added.
+
 ### Model
 The service is triggered by updates of resources of type `nfo:RemoteDataObject` of which the status is updated to `http://lblod.data.gift/file-download-statuses/ready-to-be-cached`. It will download the associated URL (`nie:url`) as file.
 
